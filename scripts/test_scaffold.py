@@ -198,6 +198,8 @@ class ScaffoldTests(unittest.TestCase):
             self.assertTrue((output / "database/custom/140_mcp_agents.sql").is_file())
             self.assertTrue((output / "database/custom/150_mcp_write.sql").is_file())
             self.assertTrue((output / "src/app/api/mcp/route.ts").is_file())
+            self.assertTrue((output / "src/app/agents/actions.ts").is_file())
+            self.assertTrue((output / "src/components/agent-create-form.tsx").is_file())
             self.assertTrue((output / "src/features/mcp/server.ts").is_file())
             self.assertTrue((output / "scripts/create-agent-token.mjs").is_file())
             self.assertTrue((output / "scripts/smoke-mcp-write.mjs").is_file())

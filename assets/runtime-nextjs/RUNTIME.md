@@ -84,7 +84,7 @@ The application may also provide `OPENAI_API_KEY` for shared direct OpenAI acces
 
 The application exposes a stateless Streamable HTTP endpoint at `/api/mcp` with separately scoped read, write, and delete capabilities. MCP is independent from the embedded assistant: an external coordinator such as Riel, Codex, or Claude brings its own model and does not require `OPENAI_API_KEY`, `AI_GATEWAY_API_KEY`, or a personal provider key in this application.
 
-After applying migrations, create a distinct expiring credential for each agent:
+After applying migrations, administrators create, revoke, and reactivate agent connections at `/agents`. The interface displays the credential once and prepares a ready-to-paste Claude Code command. The CLI remains available for automation and recovery:
 
 ```bash
 pnpm mcp:agent:create -- --name "Riel" --role admin --access write --expires-days 90
@@ -94,7 +94,7 @@ The token is displayed once and stored only as a SHA-256 hash. Send it as `Autho
 
 Before production, run `pnpm mcp:smoke:write` against a local or disposable database with representative entity values. Do not use production as the first write test.
 
-Write tools are intentionally absent. Add them only with AppSpec rules, idempotency, transactional mutation auditing, and an explicit immediate-versus-approval policy.
+Mutation tools remain constrained by AppSpec rules, idempotency, transactional auditing, explicit delete confirmation, and the agent's role and scopes.
 
 ## Application settings
 

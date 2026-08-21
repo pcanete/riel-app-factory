@@ -57,7 +57,9 @@ Consultá el [contrato completo de evolución](references/evolution.md).
 
 ## Acceso de agentes mediante MCP
 
-Las aplicaciones generadas exponen Streamable HTTP autenticado en `/api/mcp`. Después de aplicar las migraciones, creá una identidad con el menor acceso necesario:
+Las aplicaciones generadas exponen Streamable HTTP autenticado en `/api/mcp`. Un administrador crea, revoca y reactiva conexiones desde la pantalla `/agents`, que entrega una credencial de un solo uso y un comando listo para Claude Code.
+
+La CLI queda disponible para automatización o recuperación, siempre con el menor acceso necesario:
 
 ```bash
 # Sólo lectura

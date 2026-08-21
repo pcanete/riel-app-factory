@@ -25,7 +25,9 @@ No se ofrece SQL arbitrario, ejecución de código ni acceso directo a tablas in
 
 ## Identidad, alcances y autorización
 
-Después de aplicar migraciones, creá una credencial distinta por agente:
+Después de aplicar migraciones, un administrador puede crear, revocar y reactivar conexiones desde `/agents`. La interfaz muestra la credencial una sola vez y prepara el comando de conexión para Claude Code.
+
+Para automatización o recuperación operativa también está disponible la CLI:
 
 ```bash
 pnpm mcp:agent:create -- --name "Riel" --role admin --access write --expires-days 90

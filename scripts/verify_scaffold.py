@@ -41,6 +41,7 @@ EXPECTED_FILES = {
     "src/app/sign-in/[[...sign-in]]/page.tsx",
     "src/app/sign-up/[[...sign-up]]/page.tsx",
     "src/app/access-pending/page.tsx",
+    "src/app/agents/actions.ts",
     "src/app/agents/page.tsx",
     "src/app/dev-access/actions.ts",
     "src/app/dev-access/page.tsx",
@@ -64,6 +65,7 @@ EXPECTED_FILES = {
     "src/app/records/[entity]/export/route.ts",
     "src/app/records/[entity]/[id]/page.tsx",
     "src/components/import-upload-form.tsx",
+    "src/components/agent-create-form.tsx",
     "src/components/record-form.tsx",
     "src/components/attachment-panel.tsx",
     "src/components/record-filters.tsx",
@@ -296,6 +298,11 @@ def main() -> int:
     for invariant in ("requireAuditAccess", "listManagedAgents", "listAgentEvents"):
         if invariant not in agent_page:
             failures.append(f"Agent activity page is missing: {invariant}.")
+    agent_actions_path = project / "src/app/agents/actions.ts"
+    agent_actions = agent_actions_path.read_text(encoding="utf-8") if agent_actions_path.is_file() else ""
+    for invariant in ("createAgentAction", "setAgentStatusAction", "recordAuditEvent", "randomBytes"):
+        if invariant not in agent_actions:
+            failures.append(f"Agent administration is missing: {invariant}.")
     migration_runner_path = project / "scripts/apply-migrations.mjs"
     migration_runner = migration_runner_path.read_text(encoding="utf-8") if migration_runner_path.is_file() else ""
     if 'resolve("database/custom")' not in migration_runner:
