@@ -307,6 +307,8 @@ def main() -> int:
     migration_runner = migration_runner_path.read_text(encoding="utf-8") if migration_runner_path.is_file() else ""
     if 'resolve("database/custom")' not in migration_runner:
         failures.append("Migration runner does not include custom feature migrations.")
+    if 'source.replace(/\\r\\n?/g, "\\n")' not in migration_runner:
+        failures.append("Migration checksums are not normalized across operating systems.")
     production_adapter_path = project / "src/features/auth/adapter.ts"
     production_adapter = production_adapter_path.read_text(encoding="utf-8") if production_adapter_path.is_file() else ""
     for invariant in ("auth()", "currentUser()", "emailVerified"):

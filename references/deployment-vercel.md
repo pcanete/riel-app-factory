@@ -21,6 +21,8 @@ Create one Vercel project, one Neon database, one Clerk application, and one cre
 
 Connect the GitHub repository to Vercel and set the framework to Next.js. Preserve the generated `vercel-build` command: in production it applies idempotent migrations, bootstraps the pending administrator when configured, and then executes `next build`. Preview builds do not mutate the production database.
 
+The generated migration runner normalizes CRLF/LF line endings before calculating checksums. This keeps the immutable-migration guard strict while preventing Windows, Git, or deployment transport from reporting a false modification of identical SQL.
+
 ## 3. Configure environment variables
 
 Keep values scoped to the smallest required Vercel environments.

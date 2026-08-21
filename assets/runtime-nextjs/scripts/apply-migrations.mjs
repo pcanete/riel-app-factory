@@ -42,7 +42,11 @@ try {
   for (const migration of migrations) {
     const { file, name, directory } = migration;
     const source = await readFile(resolve(directory, file), "utf8");
-    const checksum = createHash("sha256").update(source).digest("hex");
+    // Git, Windows and deployment APIs can represent the same SQL with
+    // different line endings. Normalize them so the integrity check detects
+    // real migration edits instead of transport-only CRLF/LF differences.
+    const checksumSource = source.replace(/\r\n?/g, "\n");
+    const checksum = createHash("sha256").update(checksumSource).digest("hex");
     const existing = await client.query("SELECT checksum FROM app_migration WHERE name = $1", [name]);
     if (existing.rowCount) {
       if (existing.rows[0].checksum !== checksum) {
