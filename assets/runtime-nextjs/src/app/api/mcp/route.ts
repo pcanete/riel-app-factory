@@ -25,6 +25,9 @@ function configuredHosts() {
     process.env.NEXT_PUBLIC_APP_URL,
     process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined,
     process.env.VERCEL_BRANCH_URL ? `https://${process.env.VERCEL_BRANCH_URL}` : undefined,
+    process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : undefined,
     ...(process.env.MCP_ALLOWED_HOSTS ?? "").split(",").map((value) => value.trim()).filter(Boolean),
   ].filter((value): value is string => Boolean(value));
   return new Set(values.map((value) => {
