@@ -11,16 +11,21 @@ const permissionMatrix = generatedPermissions as unknown as Record<
 export function agentHasPermission(
   agent: AgentPrincipal,
   entityKey: string,
-  action: "list" | "read",
+  action: PermissionAction,
 ) {
-  return agent.scopes.includes("records:read")
+  const requiredScope = action === "delete"
+    ? "records:delete"
+    : action === "create" || action === "update"
+      ? "records:write"
+      : "records:read";
+  return agent.scopes.includes(requiredScope)
     && (permissionMatrix[entityKey]?.[agent.roleKey]?.includes(action) ?? false);
 }
 
 export function requireAgentPermission(
   agent: AgentPrincipal,
   entityKey: string,
-  action: "list" | "read",
+  action: PermissionAction,
 ): EntitySpec {
   const entity = requireEntity(entityKey);
   if (!agentHasPermission(agent, entity.key, action)) {

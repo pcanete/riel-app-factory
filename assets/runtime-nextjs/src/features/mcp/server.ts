@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { agentEntities, requireAgentPermission } from "@/features/mcp/access";
+import { executeIdempotentMutation } from "@/features/mcp/mutations";
 import {
   finishAgentToolEvent,
   startAgentToolEvent,
@@ -9,13 +10,25 @@ import {
 } from "@/features/mcp/store";
 import {
   countFilteredRecords,
+  deleteRecord,
   getRecord,
+  insertRecord,
   listRecords,
+  recordInputFromObject,
+  updateRecord,
 } from "@/lib/repository";
+import { recordAuditEvent } from "@/lib/audit";
+import { deleteAttachmentsForRecord } from "@/lib/attachments";
+import { applyRules } from "@/lib/rules";
 import { relationFields, requireEntity, runtimeSpec } from "@/lib/spec";
 
 const entityKeySchema = z.string().regex(/^[a-z][a-z0-9_]{0,47}$/);
 const filtersSchema = z.record(z.string(), z.string().max(500)).optional();
+const idempotencyKeySchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/);
+const mutationValuesSchema = z.record(z.string(), z.unknown()).superRefine((value, context) => {
+  if (Object.keys(value).length > 100) context.addIssue({ code: "custom", message: "La mutación supera 100 campos." });
+  if (JSON.stringify(value).length > 65_536) context.addIssue({ code: "custom", message: "La mutación supera 64 KB." });
+});
 
 function result(value: Record<string, unknown>) {
   return {
@@ -31,6 +44,13 @@ function errorMessage(error: unknown) {
 function safeSummary(input: Record<string, unknown>) {
   return Object.fromEntries(
     Object.entries(input).filter(([, value]) => value !== undefined).map(([key, value]) => {
+      if (key === "values" && value && typeof value === "object") {
+        const serializedValues = JSON.stringify(value);
+        return [key, {
+          fields: Object.keys(value as Record<string, unknown>).sort(),
+          fingerprint: createHash("sha256").update(serializedValues).digest("hex"),
+        }];
+      }
       const serialized = JSON.stringify(value);
       return [key, serialized && serialized.length > 1_000 ? `${serialized.slice(0, 997)}...` : value];
     }),
@@ -41,7 +61,7 @@ async function traced<T extends Record<string, unknown>>(
   agent: AgentPrincipal,
   toolName: string,
   input: Record<string, unknown>,
-  execute: () => Promise<{ value: T; resultCount?: number }>,
+  execute: (eventId: string) => Promise<{ value: T; resultCount?: number }>,
 ) {
   const event = await startAgentToolEvent({
     agentId: agent.id,
@@ -50,7 +70,7 @@ async function traced<T extends Record<string, unknown>>(
     inputSummary: safeSummary(input),
   });
   try {
-    const executed = await execute();
+    const executed = await execute(event.id);
     await finishAgentToolEvent({
       ...event,
       status: "completed",
@@ -257,6 +277,155 @@ export function createFactoryMcpServer(agent: AgentPrincipal) {
           value: { ...snapshot, fingerprint },
           resultCount: entities.reduce((sum, entity) => sum + entity.records.length, 0),
         };
+      },
+    ),
+  );
+
+  server.registerTool(
+    "create_record",
+    {
+      description: "Crea un registro aplicando permisos, validaciones, reglas, idempotencia y auditoría.",
+      inputSchema: z.object({
+        entityKey: entityKeySchema,
+        values: mutationValuesSchema,
+        idempotencyKey: idempotencyKeySchema,
+      }),
+    },
+    async ({ entityKey, values, idempotencyKey }) => traced(
+      agent,
+      "create_record",
+      { entityKey, values, idempotencyKey },
+      async (agentEventId) => {
+        const entity = requireAgentPermission(agent, entityKey, "create");
+        const normalized = recordInputFromObject(entity, values, "create");
+        const mutation = await executeIdempotentMutation({
+          agent,
+          toolName: "create_record",
+          entityKey: entity.key,
+          idempotencyKey,
+          request: { values: normalized },
+          execute: async (client) => {
+            const evaluated = applyRules({ entityKey: entity.key, event: "before_create", values: normalized });
+            const recordId = await insertRecord(entity.key, evaluated.values, client);
+            const after = await getRecord(entity.key, recordId, client);
+            await recordAuditEvent(client, {
+              agentId: agent.id,
+              agentEventId,
+              entityKey: entity.key,
+              recordId,
+              action: "create",
+              changes: { after, rules: evaluated.applied, source: "mcp" },
+            });
+            return {
+              recordId,
+              result: {
+                entityKey: entity.key,
+                record: after ? recordForAgent(entity.key, after) : null,
+              },
+            };
+          },
+        });
+        return { value: mutation, resultCount: 1 };
+      },
+    ),
+  );
+
+  server.registerTool(
+    "update_record",
+    {
+      description: "Actualiza campos de un registro aplicando permisos, reglas, idempotencia y auditoría.",
+      inputSchema: z.object({
+        entityKey: entityKeySchema,
+        id: z.string().uuid(),
+        values: mutationValuesSchema,
+        idempotencyKey: idempotencyKeySchema,
+      }),
+    },
+    async ({ entityKey, id, values, idempotencyKey }) => traced(
+      agent,
+      "update_record",
+      { entityKey, id, values, idempotencyKey },
+      async (agentEventId) => {
+        const entity = requireAgentPermission(agent, entityKey, "update");
+        const normalized = recordInputFromObject(entity, values, "update");
+        const mutation = await executeIdempotentMutation({
+          agent,
+          toolName: "update_record",
+          entityKey: entity.key,
+          idempotencyKey,
+          request: { id, values: normalized },
+          execute: async (client) => {
+            const before = await getRecord(entity.key, id, client, true);
+            if (!before) throw new Error("El registro que intentás modificar no existe.");
+            const evaluated = applyRules({ entityKey: entity.key, event: "before_update", values: normalized, before });
+            await updateRecord(entity.key, id, evaluated.values, client);
+            const after = await getRecord(entity.key, id, client);
+            await recordAuditEvent(client, {
+              agentId: agent.id,
+              agentEventId,
+              entityKey: entity.key,
+              recordId: id,
+              action: "update",
+              changes: { before, after, rules: evaluated.applied, source: "mcp" },
+            });
+            return {
+              recordId: id,
+              result: {
+                entityKey: entity.key,
+                record: after ? recordForAgent(entity.key, after) : null,
+              },
+            };
+          },
+        });
+        return { value: mutation, resultCount: 1 };
+      },
+    ),
+  );
+
+  server.registerTool(
+    "delete_record",
+    {
+      description: "Elimina un registro y sus adjuntos sólo con alcance de eliminación y confirmación explícita.",
+      inputSchema: z.object({
+        entityKey: entityKeySchema,
+        id: z.string().uuid(),
+        idempotencyKey: idempotencyKeySchema,
+        confirm: z.literal(true),
+      }),
+    },
+    async ({ entityKey, id, idempotencyKey, confirm }) => traced(
+      agent,
+      "delete_record",
+      { entityKey, id, idempotencyKey, confirm },
+      async (agentEventId) => {
+        const entity = requireAgentPermission(agent, entityKey, "delete");
+        const mutation = await executeIdempotentMutation({
+          agent,
+          toolName: "delete_record",
+          entityKey: entity.key,
+          idempotencyKey,
+          request: { id, confirm },
+          execute: async (client) => {
+            const before = await getRecord(entity.key, id, client, true);
+            if (!before) throw new Error("El registro que intentás eliminar no existe.");
+            const evaluated = applyRules({ entityKey: entity.key, event: "before_delete", values: {}, before });
+            const deletedAttachments = await deleteAttachmentsForRecord(client, entity.key, id);
+            await deleteRecord(entity.key, id, client);
+            await recordAuditEvent(client, {
+              agentId: agent.id,
+              agentEventId,
+              entityKey: entity.key,
+              recordId: id,
+              action: "delete",
+              changes: { before, attachments: deletedAttachments, rules: evaluated.applied, source: "mcp" },
+            });
+            return {
+              recordId: id,
+              result: { entityKey: entity.key, id, deleted: true },
+            };
+          },
+        });
+        return { value: mutation, resultCount: 1 };
       },
     ),
   );

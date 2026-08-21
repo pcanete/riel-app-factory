@@ -65,7 +65,7 @@ A green build is necessary but insufficient. Verify all of the following against
 6. `/users` can invite or stage a user without allowing self-deactivation or unauthorized role changes.
 7. `/settings` stores a personal provider key without rendering it back to the browser.
 8. When AI is enabled, one conversation succeeds with the intended personal or shared credential.
-9. Create a distinct expiring MCP agent, connect with its one-time token, call `list_entities`, and confirm the event appears at `/agents`.
+9. Create a distinct expiring MCP agent, connect with its one-time token, call `list_entities`, then run a representative idempotent create/update/delete cycle first against a disposable database and finally against production; confirm tool events and linked mutation audits at `/agents` and `/audit`.
 10. Runtime logs contain no unhandled error for the verified flow.
 
 Record the source commit, production deployment URL, migration result, and verification date in the delivery handoff.

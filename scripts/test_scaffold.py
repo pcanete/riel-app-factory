@@ -170,7 +170,7 @@ class ScaffoldTests(unittest.TestCase):
         self.assertIn("persistent application assistant", report)
         self.assertIn("bundled assistant is read-only", report)
         self.assertIn("Remote MCP uses one-way-hashed agent tokens", report)
-        self.assertIn("MCP is read-only", report)
+        self.assertIn("MCP writes are immediate", report)
 
     def test_scaffold_refuses_non_empty_output(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -196,9 +196,11 @@ class ScaffoldTests(unittest.TestCase):
             self.assertTrue((output / "src/proxy.ts").is_file())
             self.assertTrue((output / "database/custom/120_clerk_authentication.sql").is_file())
             self.assertTrue((output / "database/custom/140_mcp_agents.sql").is_file())
+            self.assertTrue((output / "database/custom/150_mcp_write.sql").is_file())
             self.assertTrue((output / "src/app/api/mcp/route.ts").is_file())
             self.assertTrue((output / "src/features/mcp/server.ts").is_file())
             self.assertTrue((output / "scripts/create-agent-token.mjs").is_file())
+            self.assertTrue((output / "scripts/smoke-mcp-write.mjs").is_file())
             self.assertTrue((output / "src/lib/rules.ts").is_file())
             self.assertTrue((output / "src/app/views/[view]/page.tsx").is_file())
             self.assertTrue((output / "src/app/attachments/actions.ts").is_file())

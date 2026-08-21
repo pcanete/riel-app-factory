@@ -82,15 +82,17 @@ The application may also provide `OPENAI_API_KEY` for shared direct OpenAI acces
 
 ## MCP access for external agents
 
-The application exposes a stateless, read-only Streamable HTTP endpoint at `/api/mcp`. MCP is independent from the embedded assistant: an external coordinator such as Riel, Codex, or Claude brings its own model and does not require `OPENAI_API_KEY`, `AI_GATEWAY_API_KEY`, or a personal provider key in this application.
+The application exposes a stateless Streamable HTTP endpoint at `/api/mcp` with separately scoped read, write, and delete capabilities. MCP is independent from the embedded assistant: an external coordinator such as Riel, Codex, or Claude brings its own model and does not require `OPENAI_API_KEY`, `AI_GATEWAY_API_KEY`, or a personal provider key in this application.
 
 After applying migrations, create a distinct expiring credential for each agent:
 
 ```bash
-pnpm mcp:agent:create -- --name "Riel" --role admin --expires-days 90
+pnpm mcp:agent:create -- --name "Riel" --role admin --access write --expires-days 90
 ```
 
-The token is displayed once and stored only as a SHA-256 hash. Send it as `Authorization: Bearer <token>` to `https://<application-host>/api/mcp`. Configure `NEXT_PUBLIC_APP_URL` correctly and use `MCP_ALLOWED_HOSTS` only for explicit additional hosts. The agent can discover schemas, count/query/read records, and export bounded snapshots according to the selected AppSpec role. Every tool call is attributed in `app_agent_event`; returned business records and plaintext tokens are not copied into that log.
+The token is displayed once and stored only as a SHA-256 hash. Send it as `Authorization: Bearer <token>` to `https://<application-host>/api/mcp`. Configure `NEXT_PUBLIC_APP_URL` correctly and use `MCP_ALLOWED_HOSTS` only for explicit additional hosts. `--access read` permits discovery and bounded queries; `write` adds idempotent create/update; `full` also adds explicitly confirmed deletion. AppSpec role permissions, deterministic rules, payload/rate bounds, transactional audit, and agent attribution still apply. Returned business records and plaintext tokens are not copied into the tool-event log.
+
+Before production, run `pnpm mcp:smoke:write` against a local or disposable database with representative entity values. Do not use production as the first write test.
 
 Write tools are intentionally absent. Add them only with AppSpec rules, idempotency, transactional mutation auditing, and an explicit immediate-versus-approval policy.
 

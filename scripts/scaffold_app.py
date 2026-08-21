@@ -957,7 +957,7 @@ def compile_report(spec: dict[str, Any]) -> str:
         "- Named table, kanban, calendar, and dashboard views execute only validated metadata and identifiers.",
         "- Pagination and opt-in bulk, kanban, and calendar mutations reuse server permissions, deterministic rules, transactions, and audit.",
         "- The persistent application assistant exposes only bounded read tools and checks the current user's entity permissions on every call.",
-        "- Remote MCP uses one-way-hashed agent tokens, AppSpec role permissions, bounded read tools, host checks, and per-tool attribution.",
+        "- Remote MCP uses one-way-hashed agent tokens, independent read/write/delete scopes, AppSpec role permissions, bounded tools, host checks, idempotency, rules, transactional mutation audit, and per-tool attribution.",
         "",
         "## Production gates",
         "",
@@ -967,7 +967,7 @@ def compile_report(spec: dict[str, Any]) -> str:
         "- Define audit-log retention, export, and access-review policy for the client.",
         "- Schedule deletion of expired import-preview batches and define the client's import retention policy.",
         "- Configure the AI provider secret, model allowlist, per-user budgets, retention policy, and provider data terms.",
-        "- Create distinct expiring MCP credentials, verify a real client connection, and define agent-event retention and access review.",
+        "- Create distinct expiring MCP credentials with the least required access, verify a real client read/write cycle, and define agent-event and idempotency retention plus access review.",
         "- Configure deployment, secrets, backups, logging, and monitoring per client.",
     ]
     if spec.get("rules"):
@@ -987,7 +987,7 @@ def compile_report(spec: dict[str, Any]) -> str:
         "- The bundled assistant is read-only. AI writes, approvals, connectors, schedules, email, webhooks, and external side effects require reviewed client features."
     )
     lines.append(
-        "- MCP is read-only. Agent writes require explicit scopes, idempotency, AppSpec rules, transactional audit, and an approval policy."
+        "- MCP writes are immediate only for explicitly scoped agents and AppSpec-authorized actions; deletion additionally requires its own scope and explicit confirmation. Client-sensitive actions may still require a reviewed approval adapter."
     )
     lines.extend(["", "## Assumptions", ""])
     lines.extend(

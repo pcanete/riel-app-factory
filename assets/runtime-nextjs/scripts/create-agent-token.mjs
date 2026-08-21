@@ -11,8 +11,9 @@ function argument(name) {
 const name = argument("name");
 const roleKey = argument("role");
 const expiresDaysRaw = argument("expires-days");
+const access = argument("access") ?? "read";
 if (!name || !roleKey) {
-  throw new Error('Uso: pnpm mcp:agent:create -- --name "Riel" --role admin [--expires-days 90]');
+  throw new Error('Uso: pnpm mcp:agent:create -- --name "Riel" --role admin [--access read|write|full] [--expires-days 90]');
 }
 if (name.length > 120 || !/^[a-z][a-z0-9_]{0,47}$/.test(roleKey)) {
   throw new Error("Nombre o rol inválido.");
@@ -21,6 +22,15 @@ const expiresDays = expiresDaysRaw === undefined ? null : Number(expiresDaysRaw)
 if (expiresDays !== null && (!Number.isInteger(expiresDays) || expiresDays < 1 || expiresDays > 3650)) {
   throw new Error("--expires-days debe estar entre 1 y 3650.");
 }
+if (!new Set(["read", "write", "full"]).has(access)) {
+  throw new Error("--access debe ser read, write o full.");
+}
+const scopes = [
+  "schema:read",
+  "records:read",
+  ...(access === "write" || access === "full" ? ["records:write"] : []),
+  ...(access === "full" ? ["records:delete"] : []),
+];
 
 const connectionString = process.env.DATABASE_URL_DIRECT || process.env.DATABASE_URL;
 if (!connectionString) throw new Error("Falta DATABASE_URL.");
@@ -38,8 +48,8 @@ try {
     : new Date(Date.now() + expiresDays * 24 * 60 * 60 * 1_000).toISOString();
   await client.query(
     `INSERT INTO app_agent (name, token_hash, role_key, scopes, expires_at)
-     VALUES ($1, $2, $3, ARRAY['schema:read', 'records:read']::text[], $4)`,
-    [name, tokenHash, roleKey, expiresAt],
+     VALUES ($1, $2, $3, $4::text[], $5)`,
+    [name, tokenHash, roleKey, scopes, expiresAt],
   );
   console.log("Agente MCP creado. Guardá este token ahora; no puede recuperarse después:");
   console.log(token);

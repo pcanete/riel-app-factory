@@ -44,11 +44,12 @@ export async function startAgentToolEvent(input: {
 }) {
   const rows = await sql<{ id: string }>(
     `INSERT INTO app_agent_event (agent_id, tool_name, entity_key, input_summary, status)
-     VALUES ($1, $2, $3, $4::jsonb, 'running')
+     SELECT $1, $2, $3, $4::jsonb, 'running'
+      WHERE (SELECT COUNT(*) FROM app_agent_event WHERE agent_id = $1 AND started_at > now() - interval '1 minute') < 120
      RETURNING id`,
     [input.agentId, input.toolName, input.entityKey ?? null, JSON.stringify(input.inputSummary)],
   );
-  if (!rows[0]) throw new Error("No se pudo iniciar la trazabilidad MCP.");
+  if (!rows[0]) throw new Error("El agente superó el límite de 120 herramientas por minuto.");
   return { id: rows[0].id, startedAt: Date.now() };
 }
 

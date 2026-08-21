@@ -1,50 +1,67 @@
-# Agent access through MCP
+# Acceso de agentes mediante MCP
 
-Use this contract when an external agent such as Riel, Codex, Claude, or another coordinator needs to read or later operate a generated application's data. The factory and the agent are separate systems: the generated application owns authentication, authorization, data, and audit history; the external agent brings its own model and orchestration.
+Este contrato se aplica cuando Riel, Codex, Claude u otro coordinador necesita leer u operar los datos de una aplicación generada. La fábrica y el agente son sistemas separados: la aplicación generada controla autenticación, autorización, datos y auditoría; el agente externo aporta su propio modelo y orquestación.
 
-## Initial read-only surface
+## Superficie de herramientas
 
-The generated runtime exposes stateless Streamable HTTP at `/api/mcp` using the official TypeScript MCP SDK. Its first capability set is deliberately read-only:
+El runtime expone Streamable HTTP sin estado en `/api/mcp` mediante el SDK oficial de MCP para TypeScript.
 
-- `list_entities`: discover authorized entities;
-- `describe_entity`: inspect fields, relationships, attachments, and labels;
-- `count_records`: count a bounded query;
-- `query_records`: search, filter, sort, and paginate up to 100 records;
-- `get_record`: read one record by UUID;
-- `export_snapshot`: export up to 10 authorized entities and 100 records per entity with a content fingerprint.
+Herramientas de lectura:
 
-Do not add arbitrary SQL or a generic code-execution tool. Add new tools by composing validated repository functions, AppSpec permissions, bounded inputs, and attribution.
+- `list_entities`: descubre entidades autorizadas;
+- `describe_entity`: describe campos, relaciones, adjuntos y capacidades;
+- `count_records`: cuenta una consulta acotada;
+- `query_records`: busca, filtra, ordena y pagina hasta 100 registros;
+- `get_record`: obtiene un registro por UUID;
+- `export_snapshot`: exporta hasta 10 entidades y 100 registros por entidad con huella de contenido.
 
-## Identity and authorization
+Herramientas de escritura:
 
-Apply database migrations, then create one credential per agent:
+- `create_record`: crea un registro;
+- `update_record`: modifica exclusivamente los campos enviados;
+- `delete_record`: elimina un registro y sus adjuntos con confirmación explícita.
+
+No se ofrece SQL arbitrario, ejecución de código ni acceso directo a tablas internas.
+
+## Identidad, alcances y autorización
+
+Después de aplicar migraciones, creá una credencial distinta por agente:
 
 ```bash
-pnpm mcp:agent:create -- --name "Riel" --role admin --expires-days 90
+pnpm mcp:agent:create -- --name "Riel" --role admin --access write --expires-days 90
 ```
 
-The command prints the token once. Store it in the consuming agent's secret environment and never in source control. PostgreSQL stores only its SHA-256 hash. The selected role must exist in AppSpec; entity access is the intersection of the agent's MCP scopes and that role's generated `list` or `read` permissions.
+Los niveles disponibles son:
 
-Connect to `https://<application-host>/api/mcp` using `Authorization: Bearer <token>`. Configure `NEXT_PUBLIC_APP_URL` accurately. Use `MCP_ALLOWED_HOSTS` only for additional explicit hosts, separated by commas.
+- `read`: `schema:read` y `records:read`;
+- `write`: agrega `records:write` para crear y actualizar;
+- `full`: agrega también `records:delete`.
 
-Deactivate or expire a credential in `app_agent` when it is no longer needed. Never share one credential between independent agents or environments.
+El token se imprime una sola vez. Guardalo como secreto del agente consumidor; PostgreSQL conserva sólo su hash SHA-256. El rol debe existir en AppSpec. Una operación se autoriza únicamente cuando coinciden el alcance de la credencial y el permiso `list`, `read`, `create`, `update` o `delete` de ese rol sobre la entidad.
 
-## Traceability
+Conectá `https://<host>/api/mcp` con `Authorization: Bearer <token>`. Configurá correctamente `NEXT_PUBLIC_APP_URL` y usá `MCP_ALLOWED_HOSTS` sólo para hosts adicionales explícitos.
 
-Every tool call must create an `app_agent_event` before accessing records and finish it as completed or failed. Store the agent, tool, optional entity, bounded input summary, result count, duration, and error. Do not store plaintext credentials or returned business records in the event log.
+## Seguridad de las mutaciones
 
-Read activity is attributed but not mixed into the human mutation audit table. Future write tools must use the same rules and transaction boundaries as human CRUD and record both the data mutation and the agent execution.
+Cada creación, actualización o eliminación:
 
-## Safe expansion
+- exige `idempotencyKey` única para el agente y la intención;
+- rechaza reutilizar la misma clave con una entrada diferente;
+- valida campos y relaciones contra AppSpec;
+- ejecuta las mismas reglas deterministas que la interfaz humana;
+- se realiza en una transacción PostgreSQL;
+- registra la mutación en `app_audit_log` con `agent_id` y `agent_event_id`;
+- limita la entrada a 100 campos y 64 KB;
+- respeta un máximo de 120 herramientas por agente y minuto.
 
-Before adding write tools, define separately:
+`delete_record` requiere además `records:delete` y `confirm: true`. Cuando una entidad necesite aprobación humana, segregación de funciones o efectos externos, debe añadirse un adaptador específico; no se debe debilitar este núcleo genérico.
 
-- `records:write` scopes and least-privilege agent roles;
-- deterministic input parsing and AppSpec rule execution;
-- idempotency keys for every mutation;
-- proposal versus immediate-execution policies;
-- human approval for sensitive actions;
-- transactional mutation audit with the agent identity;
-- rate, payload, and result limits.
+## Trazabilidad
 
-The embedded application assistant is optional and independent. MCP access must continue working when no OpenAI, Anthropic, or AI Gateway key exists in the generated application.
+Toda llamada crea un `app_agent_event` antes de acceder a registros y finaliza como completada o fallida. Se almacenan agente, herramienta, entidad opcional, resumen acotado de entrada, cantidad de resultados, duración y error. Los valores enviados en una mutación se resumen mediante nombres de campos y una huella; no se guardan credenciales en texto plano ni registros devueltos.
+
+Las mutaciones generan además el mismo evento de auditoría transaccional que una operación humana, enlazado con la identidad y la ejecución MCP.
+
+Desactivá o hacé vencer la credencial en `app_agent` cuando deje de utilizarse. Nunca compartas una misma credencial entre agentes o ambientes independientes.
+
+El asistente embebido es opcional e independiente. MCP debe funcionar aunque la aplicación no tenga claves de OpenAI, Anthropic o AI Gateway.

@@ -1,27 +1,25 @@
 # App Factory
 
-App Factory turns a business request into an independent, single-tenant operational data foundation. It models the request as an **AppSpec** and generates ordinary Next.js and PostgreSQL source code: a deliberately simple human interface plus an authenticated MCP surface for agents.
+App Factory convierte un pedido de negocio en una base operativa de datos independiente para un solo cliente. Modela el pedido como un **AppSpec** y genera código ordinario de Next.js y PostgreSQL: una interfaz humana deliberadamente simple y una superficie MCP autenticada para agentes.
 
-Riel is not the factory. Riel may coordinate agents that consume a generated application's MCP endpoint, but the factory and every generated application remain independently usable. The repository and skill identifier retain their historical `riel-app-factory` name for compatibility.
+Riel no es la fábrica. Riel puede coordinar agentes que consuman el endpoint MCP de una aplicación generada, pero la fábrica y cada aplicación siguen siendo utilizables de manera independiente. El repositorio y el identificador del skill conservan el nombre histórico `riel-app-factory` por compatibilidad.
 
-> En español: convierte un pedido de negocio en una base web neutral e independiente por cliente. No presupone que la aplicación sea un CRM, ERP ni otro vertical.
+## Qué genera
 
-## What it generates
+- entidades, campos, relaciones, roles y permisos del servidor;
+- migraciones PostgreSQL, CRUD auditado, importación, exportación y adjuntos;
+- vistas de tabla, kanban, calendario y dashboard;
+- reglas deterministas de validación y mutación;
+- autenticación con Clerk y gestión de usuarios de la aplicación;
+- un asistente de IA de sólo lectura con claves personales cifradas de OpenAI o Anthropic;
+- un endpoint MCP sin estado con credenciales por agente, lectura, escritura y eliminación opcional;
+- zonas explícitas para extender cada solución sin romper lo generado.
 
-- neutral entities, fields, relationships, roles, and server-side permissions;
-- PostgreSQL migrations, audited CRUD, imports/exports, and attachments;
-- table, kanban, calendar, and dashboard views;
-- deterministic validation and mutation rules;
-- Clerk authentication and application-level user management;
-- a read-only AI assistant with per-user encrypted OpenAI or Anthropic keys;
-- a stateless, read-only MCP endpoint with per-agent credentials and tool-call tracing;
-- explicit extension zones for client-specific behavior.
+Cada aplicación obtiene su propio repositorio, base de datos, despliegue, credenciales y ciclo de vida. La aplicación generada no llama a App Factory durante su ejecución.
 
-Every client application gets its own repository, database, deployment, credentials, and lifecycle. The generated application does not call App Factory in production.
+## Inicio rápido
 
-## Quick start
-
-Requirements: Python 3.11+ for the factory, and Node.js 20+ plus PostgreSQL for the generated application.
+Requisitos: Python 3.11+ para la fábrica; Node.js 20+ y PostgreSQL para la aplicación generada.
 
 ```bash
 python scripts/test_scaffold.py
@@ -31,7 +29,7 @@ python scripts/scaffold_app.py \
 python scripts/verify_scaffold.py ../maintenance-demo
 ```
 
-Then enter the generated directory:
+Luego, dentro del directorio generado:
 
 ```bash
 cp .env.example .env.local
@@ -41,11 +39,11 @@ pnpm db:smoke
 pnpm dev
 ```
 
-Set `ALLOW_UNSAFE_LOCAL_PREVIEW=true` only for local development. It enables the role selector at `/dev-access`; production always ignores it.
+Usá `ALLOW_UNSAFE_LOCAL_PREVIEW=true` exclusivamente en desarrollo local. Habilita el selector de roles en `/dev-access`; producción siempre ignora esa opción.
 
-## Evolve an existing application
+## Evolucionar una aplicación existente
 
-Keep the current `app-spec.json` committed and prepare a separate proposed spec. Generate a plan before writing anything:
+Conservá el `app-spec.json` actual y prepará por separado el AppSpec propuesto. Generá primero un plan sin modificar archivos:
 
 ```bash
 python scripts/evolve_app.py \
@@ -53,62 +51,83 @@ python scripts/evolve_app.py \
   --spec ../maintenance-demo.next.app-spec.json
 ```
 
-After reviewing the plan, apply safe additive changes with `--apply` and a meaningful migration name. The command creates the next immutable PostgreSQL migration and refreshes only factory-owned files; client features and custom migrations remain untouched. Renames, removals, type changes, enum-value removal, and changes that need data backfills stop for explicit review.
+Después de revisar el plan, aplicá cambios aditivos seguros con `--apply` y un nombre de migración descriptivo. El comando crea la siguiente migración PostgreSQL inmutable y actualiza únicamente archivos propiedad de la fábrica. Las extensiones del cliente y sus migraciones personalizadas no se sobrescriben. Renombrar, eliminar, cambiar tipos, quitar opciones de un enum o introducir cambios que necesiten backfill detiene el proceso para revisión explícita.
 
-Read the complete [evolution contract](references/evolution.md).
+Consultá el [contrato completo de evolución](references/evolution.md).
 
-## Agent access through MCP
+## Acceso de agentes mediante MCP
 
-Generated applications expose an authenticated Streamable HTTP endpoint at `/api/mcp`. After applying migrations, create a read-only agent identity:
+Las aplicaciones generadas exponen Streamable HTTP autenticado en `/api/mcp`. Después de aplicar las migraciones, creá una identidad con el menor acceso necesario:
 
 ```bash
-pnpm mcp:agent:create -- --name "Riel" --role admin --expires-days 90
+# Sólo lectura
+pnpm mcp:agent:create -- --name "Lector" --role consulta --access read --expires-days 90
+
+# Lectura, creación y actualización
+pnpm mcp:agent:create -- --name "Operador" --role gestor --access write --expires-days 90
+
+# CRUD completo, incluida eliminación
+pnpm mcp:agent:create -- --name "Administrador" --role admin --access full --expires-days 30
 ```
 
-The plaintext token is shown once and stored only as a SHA-256 hash. Connect the agent to `https://your-app.example/api/mcp` with `Authorization: Bearer <token>`. Entity visibility follows the selected AppSpec role, and every tool execution is recorded in `app_agent_event` without storing returned business data.
+El token se muestra una sola vez y PostgreSQL conserva únicamente su hash SHA-256. La autorización combina los alcances de la credencial con los permisos del rol definido en AppSpec. Cada mutación exige una clave de idempotencia, ejecuta reglas deterministas y registra en la misma transacción la identidad del agente. La eliminación requiere alcance independiente y confirmación explícita.
 
-Read the complete [MCP contract](references/mcp.md).
+Conectá el agente a `https://tu-aplicacion.example/api/mcp` usando `Authorization: Bearer <token>`. Cada herramienta queda registrada en `app_agent_event` sin copiar al log los datos comerciales devueltos.
 
-## From local validation to production
+Consultá el [contrato MCP completo](references/mcp.md).
 
-The supported production path uses Vercel, Neon PostgreSQL, and Clerk, but the generated code remains portable. A deployment is not complete until migrations, the first administrator, invitation-only authentication, permissions, health, and an authenticated browser flow have all been verified.
+Con una base descartable o local y el servidor en ejecución, verificá la interoperabilidad completa con el cliente oficial:
 
-Read the complete [Vercel production runbook](references/deployment-vercel.md) before deploying. The generated app also includes its own `RUNTIME.md` and `.env.example` so it remains operable after leaving this repository.
+```bash
+pnpm mcp:smoke:write -- \
+  --url http://127.0.0.1:3000/api/mcp \
+  --entity equipment \
+  --create-values '{"name":"Prueba MCP","status":"active"}' \
+  --update-values '{"status":"maintenance"}'
+```
 
-## Architecture boundary
+La prueba crea una identidad temporal, enumera herramientas y ejecuta crear, repetición idempotente, leer, actualizar y eliminar. Deja la identidad desactivada y conserva los eventos como evidencia de auditoría.
 
-- `app-spec.json` is the source of truth for generated structure.
-- `src/generated/` and `database/generated/` are replaceable output.
-- `src/features/`, `src/components/custom/`, and `database/custom/` belong to the application.
-- Regeneration must never overwrite client-specific behavior.
-- Integrations, approvals, external writes, and domain calculations require reviewed feature adapters.
+## De la validación local a producción
 
-See [AppSpec v0](references/app-spec-v0.md) and the [extension contract](references/extension-contract.md).
+El camino de producción soportado usa Vercel, Neon PostgreSQL y Clerk, aunque el código generado sigue siendo portable. Un despliegue no se considera completo hasta verificar migraciones, primer administrador, autenticación por invitación, permisos, salud, auditoría y un flujo real en el navegador.
 
-## Repository structure
+Leé el [procedimiento de producción en Vercel](references/deployment-vercel.md) antes de publicar. Cada aplicación incluye además `RUNTIME.md` y `.env.example` para que siga siendo operable sin este repositorio.
+
+## Límites de arquitectura
+
+- `app-spec.json` es la fuente de verdad de la estructura generada.
+- `src/generated/` y `database/generated/` son resultados reemplazables.
+- `src/features/`, `src/components/custom/` y `database/custom/` pertenecen a la aplicación.
+- Regenerar nunca debe sobrescribir comportamiento específico del cliente.
+- Integraciones, aprobaciones, escrituras externas y cálculos propios del dominio requieren adaptadores revisados.
+
+Consultá [AppSpec v0](references/app-spec-v0.md) y el [contrato de extensiones](references/extension-contract.md).
+
+## Estructura del repositorio
 
 ```text
-SKILL.md                     Codex skill instructions
-agents/openai.yaml           Skill UI metadata
-references/                  AppSpec, extension, and deployment contracts
-scripts/                     Deterministic compiler and verification
-assets/runtime-nextjs/       Portable generated-application runtime
+SKILL.md                     Instrucciones del skill para Codex
+agents/openai.yaml           Metadatos visibles del skill
+references/                  Contratos de AppSpec, extensión y despliegue
+scripts/                     Compilador y verificaciones deterministas
+assets/runtime-nextjs/       Runtime portable de las aplicaciones generadas
 ```
 
-## Security and data ownership
+## Seguridad y propiedad de los datos
 
-Never commit `.env.local`, provider credentials, database URLs, Clerk secrets, or `SETTINGS_ENCRYPTION_KEY`. Use a unique encryption key per deployed application and keep a recoverable copy in an approved secret manager: losing it makes stored user credentials unreadable.
+Nunca publiques `.env.local`, credenciales, URLs privadas de base de datos, secretos de Clerk ni `SETTINGS_ENCRYPTION_KEY`. Cada aplicación necesita una clave de cifrado única y una copia recuperable en el gestor de secretos aprobado. Si se pierde, las credenciales personales almacenadas no pueden descifrarse.
 
-Code backup does not replace database backup. Source lives in GitHub, application data in PostgreSQL, deployment configuration in the hosting provider, and identity configuration in Clerk. Each layer needs its own recovery plan.
+La copia del código no reemplaza la copia de la base. El código vive en GitHub; los datos, en PostgreSQL; la configuración de despliegue, en el proveedor; y la identidad, en Clerk. Cada capa necesita su propio plan de recuperación.
 
-See [SECURITY.md](SECURITY.md) before reporting a vulnerability.
+Consultá [SECURITY.md](SECURITY.md) antes de informar una vulnerabilidad.
 
-## Project status
+## Estado del proyecto
 
-App Factory is an early public foundation, not a hosted no-code product, CMS, ERP, CRM, or blanket production-readiness guarantee. The safest contributions improve neutrality, deterministic schema evolution, human usability, agent operability, portability, security, or verification without introducing shared multi-tenancy.
+App Factory es una base pública temprana, no un producto no-code alojado, CMS, ERP, CRM ni una promesa automática de preparación para producción. Las contribuciones más valiosas mejoran neutralidad, evolución determinista, uso humano, operación por agentes, portabilidad, seguridad o verificación sin introducir multi-tenencia compartida.
 
-Contributions are welcome; start with [CONTRIBUTING.md](CONTRIBUTING.md).
+Las contribuciones son bienvenidas; comenzá por [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## License
+## Licencia
 
-[MIT](LICENSE) — use, modify, and distribute the project with attribution and without warranty.
+[MIT](LICENSE): podés usar, modificar y distribuir el proyecto con atribución y sin garantía.

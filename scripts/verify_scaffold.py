@@ -21,6 +21,7 @@ EXPECTED_FILES = {
     "database/custom/120_clerk_authentication.sql",
     "database/custom/130_application_settings.sql",
     "database/custom/140_mcp_agents.sql",
+    "database/custom/150_mcp_write.sql",
     "src/generated/app-spec.ts",
     "src/generated/navigation.ts",
     "src/generated/permissions.ts",
@@ -88,6 +89,7 @@ EXPECTED_FILES = {
     "src/features/users/store.ts",
     "src/features/mcp/access.ts",
     "src/features/mcp/admin.ts",
+    "src/features/mcp/mutations.ts",
     "src/features/mcp/server.ts",
     "src/features/mcp/store.ts",
     "src/lib/auth-types.ts",
@@ -103,6 +105,7 @@ EXPECTED_FILES = {
     "scripts/apply-migrations.mjs",
     "scripts/bootstrap-admin.mjs",
     "scripts/create-agent-token.mjs",
+    "scripts/smoke-mcp-write.mjs",
     "scripts/smoke-crud.mjs",
     "scripts/vercel-build.mjs",
     "src/proxy.ts",
@@ -138,8 +141,8 @@ def main() -> int:
 
     if spec is not None:
         failures.extend(f"Invalid AppSpec: {error}" for error in validate_spec(spec))
-        sql_path = project / "database/generated/001_initial.sql"
-        sql = sql_path.read_text(encoding="utf-8") if sql_path.is_file() else ""
+        migration_paths = sorted((project / "database/generated").glob("*.sql"))
+        sql = "\n".join(path.read_text(encoding="utf-8") for path in migration_paths)
         registry_path = project / "src/generated/app-spec.ts"
         registry = registry_path.read_text(encoding="utf-8") if registry_path.is_file() else ""
         permissions_path = project / "src/generated/permissions.ts"
@@ -270,6 +273,11 @@ def main() -> int:
     for invariant in ("app_agent", "token_hash", "app_agent_event", "records:read"):
         if invariant not in mcp_migration:
             failures.append(f"MCP agent migration is missing: {invariant}.")
+    mcp_write_migration_path = project / "database/custom/150_mcp_write.sql"
+    mcp_write_migration = mcp_write_migration_path.read_text(encoding="utf-8") if mcp_write_migration_path.is_file() else ""
+    for invariant in ("records:write", "records:delete", "app_agent_mutation", "agent_event_id"):
+        if invariant not in mcp_write_migration:
+            failures.append(f"MCP write migration is missing: {invariant}.")
     mcp_route_path = project / "src/app/api/mcp/route.ts"
     mcp_route = mcp_route_path.read_text(encoding="utf-8") if mcp_route_path.is_file() else ""
     for invariant in ("authenticateAgentToken", "createMcpHandler", "authorization", "factoryAgent"):
@@ -280,6 +288,9 @@ def main() -> int:
     for invariant in ("list_entities", "describe_entity", "query_records", "get_record", "export_snapshot", "startAgentToolEvent"):
         if invariant not in mcp_server:
             failures.append(f"MCP read tool surface is missing: {invariant}.")
+    for invariant in ("create_record", "update_record", "delete_record", "executeIdempotentMutation", "recordAuditEvent", "applyRules"):
+        if invariant not in mcp_server:
+            failures.append(f"MCP write tool surface is missing: {invariant}.")
     agent_page_path = project / "src/app/agents/page.tsx"
     agent_page = agent_page_path.read_text(encoding="utf-8") if agent_page_path.is_file() else ""
     for invariant in ("requireAuditAccess", "listManagedAgents", "listAgentEvents"):
@@ -318,10 +329,14 @@ def main() -> int:
             failures.append("Clerk authentication dependency is missing.")
         if "@modelcontextprotocol/server" not in package.get("dependencies", {}):
             failures.append("MCP server dependency is missing.")
+        if "@modelcontextprotocol/client" not in package.get("devDependencies", {}):
+            failures.append("MCP interoperability test client is missing.")
         if "auth:bootstrap" not in package.get("scripts", {}):
             failures.append("Production administrator bootstrap command is missing.")
         if "mcp:agent:create" not in package.get("scripts", {}):
             failures.append("MCP agent bootstrap command is missing.")
+        if "mcp:smoke:write" not in package.get("scripts", {}):
+            failures.append("MCP write interoperability smoke command is missing.")
         if "vercel-build" not in package.get("scripts", {}):
             failures.append("Production migration build command is missing.")
     except (OSError, json.JSONDecodeError) as error:

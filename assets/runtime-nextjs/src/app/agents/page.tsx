@@ -14,7 +14,7 @@ export default async function AgentsPage() {
         <div>
           <p className="eyebrow">Operación mediante MCP</p>
           <h1>Agentes</h1>
-          <p className="subtitle">Identidades autorizadas y sus últimas ejecuciones de herramientas.</p>
+          <p className="subtitle">Identidades autorizadas, alcances de lectura o escritura y sus últimas ejecuciones.</p>
         </div>
       </div>
 
