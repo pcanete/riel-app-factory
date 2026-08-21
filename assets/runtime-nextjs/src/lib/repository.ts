@@ -95,7 +95,7 @@ export async function listRecords(entityKey: string, options: ListRecordOptions 
   const entity = requireEntity(entityKey);
   const columns = columnsFor(entity).map(identifier).join(", ");
   const { values, where } = listWhere(entity, options);
-  const sortable = new Set([...entity.fields.map((field) => field.key), "created_at", "updated_at"]);
+  const sortable = new Set(["id", ...entity.fields.map((field) => field.key), "created_at", "updated_at"]);
   const sort = options.sort && sortable.has(options.sort) ? options.sort : "updated_at";
   const direction = options.direction === "asc" ? "ASC" : "DESC";
   const limit = Math.min(500, Math.max(1, options.limit ?? 100));

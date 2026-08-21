@@ -35,7 +35,7 @@ A code rollback does not roll back PostgreSQL. Prefer additive, backward-compati
 
 ## Safe application evolution
 
-Keep `app-spec.json` as the committed current baseline. To add entities, fields, relationships, views, permissions, or deterministic rules, create a separate proposed AppSpec and use Riel App Factory's `scripts/evolve_app.py` first in plan mode and then with `--apply`. The tool creates the next immutable generated migration and refreshes only `app-spec.json`, `src/generated/`, and generated reports.
+Keep `app-spec.json` as the committed current baseline. To add entities, fields, relationships, views, permissions, or deterministic rules, create a separate proposed AppSpec and use App Factory's `scripts/evolve_app.py` first in plan mode and then with `--apply`. The tool creates the next immutable generated migration and refreshes only `app-spec.json`, `src/generated/`, and generated reports.
 
 Never replace the current AppSpec before producing the comparison. Review `EVOLUTION_REPORT.md` and the SQL diff, confirm database recovery, and test the migration outside production. Removals, renames, type changes, enum-value removal, and required-column backfills intentionally stop for a custom migration and rollback plan.
 
@@ -79,6 +79,20 @@ The runtime includes a persistent, read-only application assistant at `/assistan
 Each authenticated user can open `/settings` and connect a personal OpenAI or Anthropic API key. Keys are encrypted with AES-256-GCM before PostgreSQL storage, never rendered back to the browser, and are isolated by user. Define `SETTINGS_ENCRYPTION_KEY` as exactly 32 random bytes encoded as base64 (or 64 hexadecimal characters); preserve and back it up because losing it makes stored credentials unreadable.
 
 The application may also provide `OPENAI_API_KEY` for shared direct OpenAI access or `AI_GATEWAY_API_KEY` for multi-provider routing. Personal provider credentials take precedence for their provider. Optionally restrict selectable models with `AI_ALLOWED_MODELS`. Conversations, UI messages, runs, token usage, and bounded tool-call metadata are stored in PostgreSQL. This first layer cannot create, update, delete, export, or call external systems. Those capabilities require explicit approval policies and reviewed feature adapters.
+
+## MCP access for external agents
+
+The application exposes a stateless, read-only Streamable HTTP endpoint at `/api/mcp`. MCP is independent from the embedded assistant: an external coordinator such as Riel, Codex, or Claude brings its own model and does not require `OPENAI_API_KEY`, `AI_GATEWAY_API_KEY`, or a personal provider key in this application.
+
+After applying migrations, create a distinct expiring credential for each agent:
+
+```bash
+pnpm mcp:agent:create -- --name "Riel" --role admin --expires-days 90
+```
+
+The token is displayed once and stored only as a SHA-256 hash. Send it as `Authorization: Bearer <token>` to `https://<application-host>/api/mcp`. Configure `NEXT_PUBLIC_APP_URL` correctly and use `MCP_ALLOWED_HOSTS` only for explicit additional hosts. The agent can discover schemas, count/query/read records, and export bounded snapshots according to the selected AppSpec role. Every tool call is attributed in `app_agent_event`; returned business records and plaintext tokens are not copied into that log.
+
+Write tools are intentionally absent. Add them only with AppSpec rules, idempotency, transactional mutation auditing, and an explicit immediate-versus-approval policy.
 
 ## Application settings
 

@@ -1,6 +1,8 @@
-# Riel App Factory
+# App Factory
 
-Riel App Factory turns a business request into an independent, single-tenant application foundation. It models the request as an **AppSpec** and generates ordinary Next.js and PostgreSQL source code that can be extended, deployed, and maintained without depending on the factory at runtime.
+App Factory turns a business request into an independent, single-tenant operational data foundation. It models the request as an **AppSpec** and generates ordinary Next.js and PostgreSQL source code: a deliberately simple human interface plus an authenticated MCP surface for agents.
+
+Riel is not the factory. Riel may coordinate agents that consume a generated application's MCP endpoint, but the factory and every generated application remain independently usable. The repository and skill identifier retain their historical `riel-app-factory` name for compatibility.
 
 > En español: convierte un pedido de negocio en una base web neutral e independiente por cliente. No presupone que la aplicación sea un CRM, ERP ni otro vertical.
 
@@ -12,9 +14,10 @@ Riel App Factory turns a business request into an independent, single-tenant app
 - deterministic validation and mutation rules;
 - Clerk authentication and application-level user management;
 - a read-only AI assistant with per-user encrypted OpenAI or Anthropic keys;
+- a stateless, read-only MCP endpoint with per-agent credentials and tool-call tracing;
 - explicit extension zones for client-specific behavior.
 
-Every client application gets its own repository, database, deployment, credentials, and lifecycle. The generated application does not call Riel App Factory in production.
+Every client application gets its own repository, database, deployment, credentials, and lifecycle. The generated application does not call App Factory in production.
 
 ## Quick start
 
@@ -54,6 +57,18 @@ After reviewing the plan, apply safe additive changes with `--apply` and a meani
 
 Read the complete [evolution contract](references/evolution.md).
 
+## Agent access through MCP
+
+Generated applications expose an authenticated Streamable HTTP endpoint at `/api/mcp`. After applying migrations, create a read-only agent identity:
+
+```bash
+pnpm mcp:agent:create -- --name "Riel" --role admin --expires-days 90
+```
+
+The plaintext token is shown once and stored only as a SHA-256 hash. Connect the agent to `https://your-app.example/api/mcp` with `Authorization: Bearer <token>`. Entity visibility follows the selected AppSpec role, and every tool execution is recorded in `app_agent_event` without storing returned business data.
+
+Read the complete [MCP contract](references/mcp.md).
+
 ## From local validation to production
 
 The supported production path uses Vercel, Neon PostgreSQL, and Clerk, but the generated code remains portable. A deployment is not complete until migrations, the first administrator, invitation-only authentication, permissions, health, and an authenticated browser flow have all been verified.
@@ -90,7 +105,7 @@ See [SECURITY.md](SECURITY.md) before reporting a vulnerability.
 
 ## Project status
 
-Riel App Factory is an early public foundation, not a hosted no-code product and not a blanket production-readiness guarantee. The safest contributions improve neutrality, determinism, portability, security, or verification without introducing shared multi-tenancy.
+App Factory is an early public foundation, not a hosted no-code product, CMS, ERP, CRM, or blanket production-readiness guarantee. The safest contributions improve neutrality, deterministic schema evolution, human usability, agent operability, portability, security, or verification without introducing shared multi-tenancy.
 
 Contributions are welcome; start with [CONTRIBUTING.md](CONTRIBUTING.md).
 

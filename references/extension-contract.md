@@ -52,4 +52,4 @@ Never edit generated files to add client behavior. Add a feature module and regi
 
 ## Independence
 
-Each generated project must be runnable from its own repository and documented environment variables. It may use ordinary open-source packages or chosen infrastructure, but it must not call Riel App Factory at runtime.
+Each generated project must be runnable from its own repository and documented environment variables. It may use ordinary open-source packages or chosen infrastructure, but it must not call App Factory or depend on the Riel coordinator at runtime.

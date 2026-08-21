@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify observable invariants of a generated Riel application foundation."""
+"""Verify observable invariants of a generated App Factory data foundation."""
 
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ EXPECTED_FILES = {
     "database/custom/110_user_management.sql",
     "database/custom/120_clerk_authentication.sql",
     "database/custom/130_application_settings.sql",
+    "database/custom/140_mcp_agents.sql",
     "src/generated/app-spec.ts",
     "src/generated/navigation.ts",
     "src/generated/permissions.ts",
@@ -39,6 +40,7 @@ EXPECTED_FILES = {
     "src/app/sign-in/[[...sign-in]]/page.tsx",
     "src/app/sign-up/[[...sign-up]]/page.tsx",
     "src/app/access-pending/page.tsx",
+    "src/app/agents/page.tsx",
     "src/app/dev-access/actions.ts",
     "src/app/dev-access/page.tsx",
     "src/app/forbidden/page.tsx",
@@ -52,6 +54,7 @@ EXPECTED_FILES = {
     "src/app/assistant/page.tsx",
     "src/app/assistant/[id]/page.tsx",
     "src/app/api/assistant/route.ts",
+    "src/app/api/mcp/route.ts",
     "src/app/record-operations/actions.ts",
     "src/app/records/[entity]/page.tsx",
     "src/app/records/[entity]/new/page.tsx",
@@ -83,6 +86,10 @@ EXPECTED_FILES = {
     "src/features/settings/crypto.ts",
     "src/features/settings/store.ts",
     "src/features/users/store.ts",
+    "src/features/mcp/access.ts",
+    "src/features/mcp/admin.ts",
+    "src/features/mcp/server.ts",
+    "src/features/mcp/store.ts",
     "src/lib/auth-types.ts",
     "src/lib/auth.ts",
     "src/lib/audit.ts",
@@ -95,6 +102,7 @@ EXPECTED_FILES = {
     "src/lib/view-query.ts",
     "scripts/apply-migrations.mjs",
     "scripts/bootstrap-admin.mjs",
+    "scripts/create-agent-token.mjs",
     "scripts/smoke-crud.mjs",
     "scripts/vercel-build.mjs",
     "src/proxy.ts",
@@ -170,6 +178,8 @@ def main() -> int:
         failures.append("Build report does not identify the production identity integration.")
     if "permission matrix is enforced server-side" not in report:
         failures.append("Build report does not describe server-side authorization.")
+    if "Remote MCP uses one-way-hashed agent tokens" not in report:
+        failures.append("Build report does not describe MCP authentication and attribution.")
     runtime_access_path = project / "src/lib/runtime-access.ts"
     runtime_access = runtime_access_path.read_text(encoding="utf-8") if runtime_access_path.is_file() else ""
     if 'process.env.NODE_ENV !== "production"' not in runtime_access:
@@ -255,6 +265,26 @@ def main() -> int:
     for invariant in ("app_setting", "app_user_setting", "app_user_secret"):
         if invariant not in settings_migration:
             failures.append(f"Application settings migration is missing: {invariant}.")
+    mcp_migration_path = project / "database/custom/140_mcp_agents.sql"
+    mcp_migration = mcp_migration_path.read_text(encoding="utf-8") if mcp_migration_path.is_file() else ""
+    for invariant in ("app_agent", "token_hash", "app_agent_event", "records:read"):
+        if invariant not in mcp_migration:
+            failures.append(f"MCP agent migration is missing: {invariant}.")
+    mcp_route_path = project / "src/app/api/mcp/route.ts"
+    mcp_route = mcp_route_path.read_text(encoding="utf-8") if mcp_route_path.is_file() else ""
+    for invariant in ("authenticateAgentToken", "createMcpHandler", "authorization", "factoryAgent"):
+        if invariant not in mcp_route:
+            failures.append(f"MCP endpoint is missing: {invariant}.")
+    mcp_server_path = project / "src/features/mcp/server.ts"
+    mcp_server = mcp_server_path.read_text(encoding="utf-8") if mcp_server_path.is_file() else ""
+    for invariant in ("list_entities", "describe_entity", "query_records", "get_record", "export_snapshot", "startAgentToolEvent"):
+        if invariant not in mcp_server:
+            failures.append(f"MCP read tool surface is missing: {invariant}.")
+    agent_page_path = project / "src/app/agents/page.tsx"
+    agent_page = agent_page_path.read_text(encoding="utf-8") if agent_page_path.is_file() else ""
+    for invariant in ("requireAuditAccess", "listManagedAgents", "listAgentEvents"):
+        if invariant not in agent_page:
+            failures.append(f"Agent activity page is missing: {invariant}.")
     migration_runner_path = project / "scripts/apply-migrations.mjs"
     migration_runner = migration_runner_path.read_text(encoding="utf-8") if migration_runner_path.is_file() else ""
     if 'resolve("database/custom")' not in migration_runner:
@@ -286,8 +316,12 @@ def main() -> int:
                 failures.append(f"Application assistant dependency is missing: {dependency}.")
         if "@clerk/nextjs" not in package.get("dependencies", {}):
             failures.append("Clerk authentication dependency is missing.")
+        if "@modelcontextprotocol/server" not in package.get("dependencies", {}):
+            failures.append("MCP server dependency is missing.")
         if "auth:bootstrap" not in package.get("scripts", {}):
             failures.append("Production administrator bootstrap command is missing.")
+        if "mcp:agent:create" not in package.get("scripts", {}):
+            failures.append("MCP agent bootstrap command is missing.")
         if "vercel-build" not in package.get("scripts", {}):
             failures.append("Production migration build command is missing.")
     except (OSError, json.JSONDecodeError) as error:

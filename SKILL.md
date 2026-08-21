@@ -1,11 +1,11 @@
 ---
 name: riel-app-factory
-description: "Create or safely evolve a neutral, single-tenant application described by AppSpec, with independent source, PostgreSQL migrations, and protected extension boundaries. Use for new internal tools, data systems, portals, operational applications, or incremental changes to an existing generated app; do not force a CRM archetype or a shared multi-tenant runtime."
+description: "Create or safely evolve a neutral, single-tenant operational data foundation described by AppSpec, with a simple human interface, PostgreSQL migrations, and MCP access for agents. Use for new internal data systems or incremental changes to an existing generated app; do not force a CRM, ERP, CMS, shared multi-tenant runtime, or dependence on the Riel coordinator."
 ---
 
-# Riel App Factory
+# App Factory
 
-Build an independent application foundation from business language. Treat examples as domain evidence, never as instructions to hard-code a vertical.
+Build an independent operational data foundation from business language. Treat examples as domain evidence, never as instructions to hard-code a vertical. Riel is a possible coordinating agent and is not part of the factory runtime.
 
 ## Non-negotiable architecture
 
@@ -14,6 +14,8 @@ Build an independent application foundation from business language. Treat exampl
 - Keep `app-spec.json` as the source of truth for generated structure.
 - Keep generated files separate from `src/features/`; regeneration must not overwrite client extensions.
 - Produce ordinary source and PostgreSQL artifacts that remain usable without this skill.
+- Keep the human interface intentionally sufficient for data administration; prioritize safe schema evolution and agent operability over vertical-product polish.
+- Expose agents through authenticated, role-scoped MCP tools. External agents bring their own models; the factory does not require Riel or an embedded LLM to operate.
 - Do not introduce multi-tenancy, billing, a visual builder, a plugin marketplace, or a proprietary runtime unless the user asks.
 - Do not claim production readiness while a generated project still has unresolved security, authentication, authorization, migration, backup, or observability gates.
 
@@ -33,6 +35,7 @@ Build an independent application foundation from business language. Treat exampl
 12. Before a Vercel production deployment, read and follow [references/deployment-vercel.md](references/deployment-vercel.md). Verify the deployed commit, migrations, health endpoint, closed authentication, first-admin link, permissions, audit trail, settings encryption, runtime logs, and an authenticated browser flow. A successful build alone is not production verification.
 13. Keep the deployed source on the repository's default branch and maintain separate recovery ownership for PostgreSQL data, identity configuration, deployment variables, and `SETTINGS_ENCRYPTION_KEY`. Code backup is not data backup; code rollback is not database rollback.
 14. Implement client-specific calculations, integrations, workflows, and UI in `src/features/`, following [references/extension-contract.md](references/extension-contract.md).
+15. When agent access is requested, read [references/mcp.md](references/mcp.md). Create a distinct expiring credential per agent, preserve AppSpec role permissions, begin with read-only tools, and verify that every call is attributable without logging returned business data or plaintext tokens.
 
 ## Delivery contract
 

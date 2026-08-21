@@ -1,4 +1,4 @@
 interface:
-  display_name: "Riel App Factory"
-  short_description: "Genera y evoluciona aplicaciones desde AppSpec"
-  default_prompt: "Usa $riel-app-factory para crear o evolucionar esta aplicación web independiente desde su AppSpec."
+  display_name: "App Factory"
+  short_description: "Datos estables y MCP para agentes"
+  default_prompt: "Usa $riel-app-factory para crear o evolucionar esta base operativa independiente desde su AppSpec."
