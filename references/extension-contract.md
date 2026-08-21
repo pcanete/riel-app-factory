@@ -45,7 +45,8 @@ Never edit generated files to add client behavior. Add a feature module and regi
 ## Database evolution
 
 - Generated migrations are immutable after deployment.
-- Changes to AppSpec create a new migration; they do not rewrite an applied migration.
+- Run `scripts/evolve_app.py` in plan mode before changing an existing generated application; read [evolution.md](evolution.md) for its safety contract.
+- Safe AppSpec changes create a new numbered migration and update only factory-owned artifacts; they do not rewrite an applied migration or client extension.
 - Custom migrations use a separate sequence and must declare dependencies.
 - Destructive schema changes require explicit review and a rollback or data-migration plan.
 

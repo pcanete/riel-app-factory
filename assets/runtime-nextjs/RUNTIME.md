@@ -33,6 +33,12 @@ Keep one independent Vercel project, Neon database, Clerk application, and crede
 
 A code rollback does not roll back PostgreSQL. Prefer additive, backward-compatible migrations and require an explicit data backup, migration, and rollback plan for destructive changes. Configure database backup or point-in-time recovery appropriate to the application and test restoration. Record who owns recovery for source, data, identity, environment variables, and encryption keys.
 
+## Safe application evolution
+
+Keep `app-spec.json` as the committed current baseline. To add entities, fields, relationships, views, permissions, or deterministic rules, create a separate proposed AppSpec and use Riel App Factory's `scripts/evolve_app.py` first in plan mode and then with `--apply`. The tool creates the next immutable generated migration and refreshes only `app-spec.json`, `src/generated/`, and generated reports.
+
+Never replace the current AppSpec before producing the comparison. Review `EVOLUTION_REPORT.md` and the SQL diff, confirm database recovery, and test the migration outside production. Removals, renames, type changes, enum-value removal, and required-column backfills intentionally stop for a custom migration and rollback plan.
+
 Every entity also exposes generic CSV/XLSX transfer tools:
 
 - export and template downloads require the entity's server-side permissions;

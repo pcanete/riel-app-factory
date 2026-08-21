@@ -40,6 +40,20 @@ pnpm dev
 
 Set `ALLOW_UNSAFE_LOCAL_PREVIEW=true` only for local development. It enables the role selector at `/dev-access`; production always ignores it.
 
+## Evolve an existing application
+
+Keep the current `app-spec.json` committed and prepare a separate proposed spec. Generate a plan before writing anything:
+
+```bash
+python scripts/evolve_app.py \
+  --project ../maintenance-demo \
+  --spec ../maintenance-demo.next.app-spec.json
+```
+
+After reviewing the plan, apply safe additive changes with `--apply` and a meaningful migration name. The command creates the next immutable PostgreSQL migration and refreshes only factory-owned files; client features and custom migrations remain untouched. Renames, removals, type changes, enum-value removal, and changes that need data backfills stop for explicit review.
+
+Read the complete [evolution contract](references/evolution.md).
+
 ## From local validation to production
 
 The supported production path uses Vercel, Neon PostgreSQL, and Clerk, but the generated code remains portable. A deployment is not complete until migrations, the first administrator, invitation-only authentication, permissions, health, and an authenticated browser flow have all been verified.
