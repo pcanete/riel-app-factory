@@ -1,15 +1,14 @@
 import { randomUUID } from "node:crypto";
 import pg from "pg";
+import { databaseConfig } from "./db-connection.mjs";
 
 const { Client } = pg;
-const connectionString = process.env.DATABASE_URL_DIRECT || process.env.DATABASE_URL;
 const email = process.env.BOOTSTRAP_ADMIN_EMAIL?.trim().toLowerCase();
 const displayName = process.env.BOOTSTRAP_ADMIN_NAME?.trim() || email;
 
-if (!connectionString) throw new Error("Falta DATABASE_URL_DIRECT o DATABASE_URL.");
 if (!email || !/^\S+@\S+\.\S+$/.test(email)) throw new Error("Falta BOOTSTRAP_ADMIN_EMAIL válido.");
 
-const client = new Client({ connectionString });
+const client = new Client(databaseConfig({ direct: true }));
 await client.connect();
 try {
   const role = await client.query("SELECT 1 FROM app_role WHERE key = 'admin'");

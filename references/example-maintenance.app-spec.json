@@ -12,9 +12,13 @@
     }
   },
   "roles": [
-    {"key": "admin", "label": "Administrador"},
-    {"key": "supervisor", "label": "Supervisor"},
-    {"key": "technician", "label": "Técnico"}
+    {
+      "key": "admin",
+      "label": "Administrador",
+      "capabilities": ["manage_users", "manage_settings", "manage_agents", "view_audit", "view_rules"]
+    },
+    {"key": "supervisor", "label": "Supervisor", "capabilities": ["view_audit", "view_rules"]},
+    {"key": "technician", "label": "Técnico", "capabilities": []}
   ],
   "entities": [
     {

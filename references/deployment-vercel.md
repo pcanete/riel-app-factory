@@ -38,6 +38,9 @@ Keep values scoped to the smallest required Vercel environments.
 |---|---|---|
 | `DATABASE_URL` | Production, runtime | Pooled Neon connection used by the application |
 | `DATABASE_URL_DIRECT` | Production, build | Direct/unpooled connection preferred for migrations |
+| `DATABASE_CA_CERT` | Optional, sensitive | PEM CA for verified PostgreSQL TLS; supports literal `\\n` separators |
+| `DATABASE_CA_CERT_FILE` | Local/server only | Path to a CA file; generally unsuitable for Vercel's immutable environment |
+| `DATABASE_SSL` | Optional | `off` for trusted local networks or `relaxed` as an explicit unverified fallback |
 | `NEXT_PUBLIC_APP_URL` | Production | Canonical application origin used in links |
 | `MCP_ALLOWED_HOSTS` | Optional | Additional comma-separated hosts accepted by `/api/mcp` |
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Production | Public Clerk application identifier |
@@ -51,7 +54,7 @@ Never configure `ALLOW_UNSAFE_LOCAL_PREVIEW=true` in Vercel. Production ignores 
 
 Use a Clerk production instance and its live key pair before calling an environment production-ready. Clerk development keys are acceptable for a temporary Hobby evaluation, but they have strict limits and keep the deployment in test status even when authentication itself works.
 
-Keep the PostgreSQL TLS mode explicit. If the connection parser warns that `sslmode=require` will change semantics in a future major release, plan and test a controlled move to `sslmode=verify-full` to preserve certificate verification; do not silently rewrite a production connection string during an unrelated deployment.
+Keep the PostgreSQL TLS mode explicit. Prefer the provider URL when it already verifies TLS, or set `DATABASE_CA_CERT` for an explicit trusted CA. `DATABASE_SSL=relaxed` disables certificate verification and must not become the normal production setting. If the connection parser warns that `sslmode=require` will change semantics in a future major release, plan and test a controlled move to verified TLS; do not silently rewrite a production connection string during an unrelated deployment.
 
 ## 4. Close identity before opening access
 

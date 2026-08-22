@@ -116,7 +116,7 @@ export type RuntimeSpec = {
     timezone?: string;
     theme?: { primary?: string; surface?: string };
   };
-  roles: Array<{ key: string; label: string }>;
+  roles: Array<{ key: string; label: string; capabilities?: string[] }>;
   entities: EntitySpec[];
   views: ViewSpec[];
   rules?: RuleSpec[];

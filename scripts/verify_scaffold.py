@@ -84,6 +84,7 @@ EXPECTED_FILES = {
     "src/lib/auth.ts",
     "src/lib/audit.ts",
     "src/lib/attachments.ts",
+    "src/lib/connection.ts",
     "src/lib/data-transfer.ts",
     "src/lib/import-batches.ts",
     "src/lib/repository.ts",
@@ -91,6 +92,7 @@ EXPECTED_FILES = {
     "src/lib/rules.ts",
     "src/lib/view-query.ts",
     "scripts/apply-migrations.mjs",
+    "scripts/db-connection.mjs",
     "scripts/bootstrap-admin.mjs",
     "scripts/create-agent-token.mjs",
     "scripts/smoke-mcp-write.mjs",
@@ -179,6 +181,9 @@ def main() -> int:
     auth_source = auth_path.read_text(encoding="utf-8") if auth_path.is_file() else ""
     if "generatedPermissions" not in auth_source or "requirePermission" not in auth_source:
         failures.append("Runtime authentication does not enforce the generated permission matrix.")
+    for invariant in ("generatedCapabilities", "hasAdministrativeCapability", "legacyAdministrativeAccess"):
+        if invariant not in auth_source:
+            failures.append(f"Runtime administrative capabilities are missing: {invariant}.")
     action_path = project / "src/app/actions.ts"
     action_source = action_path.read_text(encoding="utf-8") if action_path.is_file() else ""
     for action in ("create", "update", "delete"):
@@ -233,7 +238,7 @@ def main() -> int:
         failures.append("Record lists are missing database-backed pagination.")
     settings_actions_path = project / "src/app/settings/actions.ts"
     settings_actions = settings_actions_path.read_text(encoding="utf-8") if settings_actions_path.is_file() else ""
-    for invariant in ("saveApplicationOptionAction", "deleteApplicationOptionAction", "requireUserManagementAccess", "recordAuditEvent", "withTransaction"):
+    for invariant in ("saveApplicationOptionAction", "deleteApplicationOptionAction", "requireSettingsAccess", "recordAuditEvent", "withTransaction"):
         if invariant not in settings_actions:
             failures.append(f"Application settings actions are missing: {invariant}.")
     settings_store_path = project / "src/features/settings/store.ts"
@@ -263,7 +268,7 @@ def main() -> int:
             failures.append(f"MCP endpoint is missing: {invariant}.")
     mcp_server_path = project / "src/features/mcp/server.ts"
     mcp_server = mcp_server_path.read_text(encoding="utf-8") if mcp_server_path.is_file() else ""
-    for invariant in ("list_entities", "describe_entity", "query_records", "get_record", "export_snapshot", "startAgentToolEvent"):
+    for invariant in ("list_entities", "describe_entity", "query_records", "get_record", "list_attachments", "read_attachment", "export_snapshot", "startAgentToolEvent"):
         if invariant not in mcp_server:
             failures.append(f"MCP read tool surface is missing: {invariant}.")
     for invariant in ("create_record", "update_record", "delete_record", "executeIdempotentMutation", "recordAuditEvent", "applyRules"):
@@ -271,12 +276,12 @@ def main() -> int:
             failures.append(f"MCP write tool surface is missing: {invariant}.")
     agent_page_path = project / "src/app/agents/page.tsx"
     agent_page = agent_page_path.read_text(encoding="utf-8") if agent_page_path.is_file() else ""
-    for invariant in ("requireAuditAccess", "listManagedAgents", "listAgentEvents"):
+    for invariant in ("requireAgentManagementAccess", "listManagedAgents", "listAgentEvents"):
         if invariant not in agent_page:
             failures.append(f"Agent activity page is missing: {invariant}.")
     agent_actions_path = project / "src/app/agents/actions.ts"
     agent_actions = agent_actions_path.read_text(encoding="utf-8") if agent_actions_path.is_file() else ""
-    for invariant in ("createAgentAction", "setAgentStatusAction", "recordAuditEvent", "randomBytes"):
+    for invariant in ("createAgentAction", "setAgentStatusAction", "requireAgentManagementAccess", "recordAuditEvent", "randomBytes"):
         if invariant not in agent_actions:
             failures.append(f"Agent administration is missing: {invariant}.")
     migration_runner_path = project / "scripts/apply-migrations.mjs"
@@ -285,6 +290,14 @@ def main() -> int:
         failures.append("Migration runner does not include custom feature migrations.")
     if 'source.replace(/\\r\\n?/g, "\\n")' not in migration_runner:
         failures.append("Migration checksums are not normalized across operating systems.")
+    for invariant in ('client.query("BEGIN")', "INSERT INTO app_migration", 'client.query("COMMIT")', 'client.query("ROLLBACK")'):
+        if invariant not in migration_runner:
+            failures.append(f"Migration runner is missing atomicity invariant: {invariant}.")
+    for migration_directory in ("database/generated", "database/custom"):
+        for migration in (project / migration_directory).glob("*.sql"):
+            source = migration.read_text(encoding="utf-8")
+            if "BEGIN;" in source or "COMMIT;" in source:
+                failures.append(f"Migration opens its own transaction: {migration_directory}/{migration.name}.")
     production_adapter_path = project / "src/features/auth/adapter.ts"
     production_adapter = production_adapter_path.read_text(encoding="utf-8") if production_adapter_path.is_file() else ""
     for invariant in ("auth()", "currentUser()", "emailVerified"):

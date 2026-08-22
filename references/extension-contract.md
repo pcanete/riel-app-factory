@@ -27,6 +27,7 @@ Never edit generated files to add client behavior. Add a feature module and regi
 - stable, declarative business intent.
 - deterministic before-mutation conditions using the reviewed `set` and `block` actions.
 - bounded record-attachment policies using the built-in PostgreSQL adapter.
+- immutable custom migrations without their own transaction boundary; the runner commits SQL and migration ledger atomically.
 - deterministic table, kanban, calendar, and dashboard view definitions.
 - bounded, opt-in table bulk edits and kanban/calendar moves that reuse permissions, rules, transactions, and audit.
 

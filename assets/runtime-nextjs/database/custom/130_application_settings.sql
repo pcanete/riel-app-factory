@@ -1,5 +1,4 @@
 -- NAMESPACED APPLICATION OPTIONS. SAFE TO REAPPLY.
-BEGIN;
 
 CREATE TABLE IF NOT EXISTS app_setting (
   namespace text NOT NULL,
@@ -11,5 +10,3 @@ CREATE TABLE IF NOT EXISTS app_setting (
   CONSTRAINT app_setting_namespace_check CHECK (namespace ~ '^[a-z][a-z0-9_.-]{0,63}$'),
   CONSTRAINT app_setting_key_check CHECK (key ~ '^[a-z][a-z0-9_.-]{0,63}$')
 );
-
-COMMIT;

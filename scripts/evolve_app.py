@@ -392,6 +392,8 @@ def plan_evolution(old_spec: dict[str, Any], new_spec: dict[str, Any]) -> Evolut
                 "ON CONFLICT (key) DO UPDATE SET label = EXCLUDED.label;"
             )
             plan.changes.append(f"Role label updated: {role_key}")
+        if old_roles[role_key].get("capabilities", []) != new_roles[role_key].get("capabilities", []):
+            plan.changes.append(f"Role capabilities updated: {role_key}")
 
     old_entities = keyed(old_spec["entities"])
     new_entities = keyed(new_spec["entities"])

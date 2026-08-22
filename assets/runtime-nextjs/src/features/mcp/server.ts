@@ -18,13 +18,20 @@ import {
   updateRecord,
 } from "@/lib/repository";
 import { recordAuditEvent } from "@/lib/audit";
-import { deleteAttachmentsForRecord } from "@/lib/attachments";
+import {
+  deleteAttachmentsForRecord,
+  getAttachmentContent,
+  getAttachmentMetadata,
+  listAttachments,
+  resolveAttachmentPolicy,
+} from "@/lib/attachments";
 import { applyRules } from "@/lib/rules";
 import { relationFields, requireEntity, runtimeSpec } from "@/lib/spec";
 
 const entityKeySchema = z.string().regex(/^[a-z][a-z0-9_]{0,47}$/);
 const filtersSchema = z.record(z.string(), z.string().max(500)).optional();
 const idempotencyKeySchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/);
+const MCP_ATTACHMENT_MAX_BYTES = 2 * 1024 * 1024;
 const mutationValuesSchema = z.record(z.string(), z.unknown()).superRefine((value, context) => {
   if (Object.keys(value).length > 100) context.addIssue({ code: "custom", message: "La mutación supera 100 campos." });
   if (JSON.stringify(value).length > 65_536) context.addIssue({ code: "custom", message: "La mutación supera 64 KB." });
@@ -142,7 +149,11 @@ export function createFactoryMcpServer(agent: AgentPrincipal) {
             description: entity.description,
             title_field: entity.title_field,
             fields: entity.fields,
-            relationships: entity.relationships ?? [],
+            relationships: (entity.relationships ?? []).map((relationship) => ({
+              ...relationship,
+              writable: relationship.type === "belongs_to",
+              writeAs: relationship.type === "belongs_to" ? `${relationship.key}_id` : null,
+            })),
             attachments: entity.attachments,
           },
         },
@@ -231,6 +242,79 @@ export function createFactoryMcpServer(agent: AgentPrincipal) {
           ? { found: true, entityKey: entity.key, record: recordForAgent(entity.key, record) }
           : { found: false, entityKey: entity.key, id },
         resultCount: record ? 1 : 0,
+      };
+    }),
+  );
+
+  server.registerTool(
+    "list_attachments",
+    {
+      description: "Lista los adjuntos de un registro autorizado, sin exponer su contenido.",
+      inputSchema: z.object({ entityKey: entityKeySchema, recordId: z.string().uuid() }),
+    },
+    async ({ entityKey, recordId }) => traced(
+      agent,
+      "list_attachments",
+      { entityKey, recordId },
+      async () => {
+        const entity = requireAgentPermission(agent, entityKey, "read");
+        if (!resolveAttachmentPolicy(entity)) throw new Error("La entidad no admite adjuntos.");
+        const attachments = await listAttachments(entity.key, recordId);
+        return {
+          value: {
+            entityKey: entity.key,
+            recordId,
+            attachments: attachments.map((attachment) => ({
+              id: attachment.id,
+              name: attachment.original_name,
+              contentType: attachment.content_type,
+              sizeBytes: attachment.size_bytes,
+              sha256: attachment.sha256,
+              createdAt: attachment.created_at.toISOString(),
+            })),
+          },
+          resultCount: attachments.length,
+        };
+      },
+    ),
+  );
+
+  server.registerTool(
+    "read_attachment",
+    {
+      description: "Lee un adjunto autorizado en base64 y verifica su integridad SHA-256.",
+      inputSchema: z.object({ attachmentId: z.string().uuid() }),
+    },
+    async ({ attachmentId }) => traced(agent, "read_attachment", { attachmentId }, async (): Promise<{
+      value: Record<string, unknown>;
+      resultCount: number;
+    }> => {
+      const metadata = await getAttachmentMetadata(attachmentId);
+      if (!metadata) return { value: { found: false, attachmentId }, resultCount: 0 };
+      const entity = requireAgentPermission(agent, metadata.entity_key, "read");
+      if (!resolveAttachmentPolicy(entity)) throw new Error("La entidad no admite adjuntos.");
+      if (metadata.size_bytes > MCP_ATTACHMENT_MAX_BYTES) {
+        throw new Error("El adjunto supera el límite MCP de 2 MB; usá un adaptador de archivos para contenido mayor.");
+      }
+      const attachment = await getAttachmentContent(attachmentId);
+      if (!attachment) return { value: { found: false, attachmentId }, resultCount: 0 };
+      const calculatedHash = createHash("sha256").update(attachment.content).digest("hex");
+      if (calculatedHash !== attachment.sha256) throw new Error("El adjunto no superó la verificación de integridad.");
+      return {
+        value: {
+          found: true,
+          attachment: {
+            id: attachment.id,
+            entityKey: attachment.entity_key,
+            recordId: attachment.record_id,
+            name: attachment.original_name,
+            contentType: attachment.content_type,
+            sizeBytes: attachment.size_bytes,
+            sha256: attachment.sha256,
+            contentBase64: attachment.content.toString("base64"),
+          },
+        },
+        resultCount: 1,
       };
     }),
   );

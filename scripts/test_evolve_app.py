@@ -222,6 +222,23 @@ class EvolutionTests(unittest.TestCase):
             migrations = sorted((project / "database/generated").glob("*.sql"))
             self.assertEqual([path.name for path in migrations], ["001_initial.sql"])
 
+    def test_role_capability_change_is_runtime_only_and_refreshes_permissions(self) -> None:
+        proposed = copy.deepcopy(self.spec)
+        supervisor = next(role for role in proposed["roles"] if role["key"] == "supervisor")
+        supervisor["capabilities"].append("manage_settings")
+        plan = plan_evolution(self.spec, proposed)
+        self.assertTrue(plan.safe_to_apply)
+        self.assertFalse(plan.sql)
+        self.assertIn("Role capabilities updated: supervisor", plan.changes)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            project = Path(temporary) / "project"
+            scaffold(self.spec, project)
+            migration = apply_evolution(project, proposed, plan, "role_capabilities")
+            self.assertIsNone(migration)
+            permissions = (project / "src/generated/permissions.ts").read_text(encoding="utf-8")
+            self.assertIn("manage_settings", permissions)
+
 
 if __name__ == "__main__":
     unittest.main()

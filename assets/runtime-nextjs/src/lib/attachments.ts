@@ -93,6 +93,27 @@ export async function getAttachmentContent(id: string) {
   return rows[0] ?? null;
 }
 
+export async function getAttachmentMetadata(id: string) {
+  const rows = await sql<AttachmentMetadata>(
+    `SELECT attachment.id,
+            attachment.entity_key,
+            attachment.record_id,
+            attachment.original_name,
+            attachment.content_type,
+            attachment.size_bytes,
+            attachment.sha256,
+            attachment.created_by,
+            creator.display_name AS created_by_name,
+            attachment.created_at
+       FROM app_attachment AS attachment
+       LEFT JOIN app_user AS creator ON creator.id = attachment.created_by
+      WHERE attachment.id = $1
+      LIMIT 1`,
+    [id],
+  );
+  return rows[0] ?? null;
+}
+
 export async function lockAttachmentSet(client: PoolClient, entityKey: string, recordId: string) {
   await transactionSql(
     client,

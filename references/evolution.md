@@ -46,7 +46,7 @@ It does not overwrite `src/features/`, `src/components/custom/`, `database/custo
 - add an optional field;
 - add a required field when it has a safe default;
 - add an optional `belongs_to` relationship;
-- add or relabel roles;
+- add or relabel roles, and change their explicit administrative capabilities;
 - add enum values without removing existing values;
 - add a search index or relax `NOT NULL`;
 - change field defaults;

@@ -4,7 +4,7 @@ import {
   saveApplicationSettingsAction,
 } from "@/app/settings/actions";
 import { getApplicationSettings, listApplicationOptions } from "@/features/settings/store";
-import { requireUserManagementAccess } from "@/lib/auth";
+import { requireSettingsAccess } from "@/lib/auth";
 import { formatValue } from "@/lib/presentation";
 import { runtimeSpec } from "@/lib/spec";
 
@@ -32,7 +32,7 @@ function optionValue(value: unknown) {
 }
 
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ error?: string; saved?: string }> }) {
-  await requireUserManagementAccess();
+  await requireSettingsAccess();
   const requested = await searchParams;
   const [applicationSettings, options] = await Promise.all([getApplicationSettings(), listApplicationOptions()]);
 

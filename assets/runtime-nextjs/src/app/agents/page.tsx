@@ -1,7 +1,7 @@
 import { setAgentStatusAction } from "@/app/agents/actions";
 import { AgentCreateForm } from "@/components/agent-create-form";
 import { listAgentEvents, listManagedAgents } from "@/features/mcp/admin";
-import { requireAuditAccess } from "@/lib/auth";
+import { requireAgentManagementAccess } from "@/lib/auth";
 import { formatDateTimeValue } from "@/lib/presentation";
 import { runtimeSpec } from "@/lib/spec";
 
@@ -17,7 +17,7 @@ export default async function AgentsPage({
 }: {
   searchParams: Promise<{ error?: string; saved?: string }>;
 }) {
-  await requireAuditAccess();
+  await requireAgentManagementAccess();
   const requested = await searchParams;
   const [agents, events] = await Promise.all([listManagedAgents(), listAgentEvents()]);
   return (

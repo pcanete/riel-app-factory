@@ -23,3 +23,140 @@ jobs:
         run: |
           python scripts/scaffold_app.py --spec references/example-maintenance.app-spec.json --output /tmp/riel-reference-app
           python scripts/verify_scaffold.py /tmp/riel-reference-app
+
+  runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Generate the reference application
+        run: python scripts/scaffold_app.py --spec references/example-maintenance.app-spec.json --output /tmp/riel-reference-app
+      - name: Install generated dependencies
+        working-directory: /tmp/riel-reference-app
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck generated runtime
+        working-directory: /tmp/riel-reference-app
+        run: pnpm typecheck
+      - name: Build generated runtime
+        working-directory: /tmp/riel-reference-app
+        run: pnpm build
+
+  database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Generate the reference application
+        run: python scripts/scaffold_app.py --spec references/example-maintenance.app-spec.json --output /tmp/riel-reference-app
+      - name: Install generated dependencies
+        working-directory: /tmp/riel-reference-app
+        run: pnpm install --frozen-lockfile
+      - name: Apply migrations twice
+        working-directory: /tmp/riel-reference-app
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/app
+        run: |
+          pnpm db:apply
+          pnpm db:apply
+      - name: Smoke every generated entity
+        working-directory: /tmp/riel-reference-app
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/app
+        run: pnpm db:smoke
+
+  evolution:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Generate and apply v1
+        run: |
+          python scripts/scaffold_app.py --spec references/example-maintenance.app-spec.json --output /tmp/evolving-app
+          cd /tmp/evolving-app
+          pnpm install --frozen-lockfile
+          pnpm db:apply
+      - name: Load data that must survive
+        working-directory: /tmp/evolving-app
+        run: >-
+          node -e "const pg=require('pg');(async()=>{const c=new pg.Client({connectionString:process.env.DATABASE_URL});await c.connect();await c.query(\"INSERT INTO equipment (name,status) VALUES ('bomba-1','active')\");await c.end();})().catch(e=>{console.error(e);process.exit(1)})"
+      - name: Plan and apply safe schema evolution
+        run: |
+          python - <<'SPEC'
+          import json
+          from pathlib import Path
+          spec = json.loads(Path("references/example-maintenance.app-spec.json").read_text(encoding="utf-8"))
+          equipment = next(entity for entity in spec["entities"] if entity["key"] == "equipment")
+          equipment["fields"].append({"key": "location", "label": "Ubicación", "type": "text", "searchable": True})
+          spec["entities"].append({
+              "key": "supplier", "label": "Proveedor", "label_plural": "Proveedores", "title_field": "name",
+              "fields": [{"key": "name", "label": "Nombre", "type": "text", "required": True}],
+              "permissions": {role["key"]: ["list", "read"] for role in spec["roles"]},
+          })
+          Path("/tmp/v2.app-spec.json").write_text(json.dumps(spec, ensure_ascii=False, indent=2), encoding="utf-8")
+          SPEC
+          python scripts/evolve_app.py --project /tmp/evolving-app --spec /tmp/v2.app-spec.json --apply --migration-name ci_evolution
+      - name: Apply evolution and verify preserved data
+        working-directory: /tmp/evolving-app
+        run: |
+          pnpm db:apply
+          node -e "const pg=require('pg');(async()=>{const c=new pg.Client({connectionString:process.env.DATABASE_URL});await c.connect();const kept=await c.query(\"SELECT location FROM equipment WHERE name='bomba-1'\");if(kept.rowCount!==1||kept.rows[0].location!==null)throw new Error('La evolución no preservó los datos.');await c.query(\"INSERT INTO supplier (name) VALUES ('proveedor-1')\");await c.end();})().catch(e=>{console.error(e);process.exit(1)})"
+      - name: Verify evolved runtime
+        working-directory: /tmp/evolving-app
+        run: |
+          pnpm typecheck
+          pnpm db:smoke

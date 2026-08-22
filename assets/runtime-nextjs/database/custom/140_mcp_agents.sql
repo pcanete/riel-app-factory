@@ -1,5 +1,4 @@
 -- MCP AGENT IDENTITIES AND READ-ACTIVITY LOG. SAFE TO REAPPLY.
-BEGIN;
 
 CREATE TABLE IF NOT EXISTS app_agent (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -49,5 +48,3 @@ DROP TRIGGER IF EXISTS app_agent_set_updated_at ON app_agent;
 CREATE TRIGGER app_agent_set_updated_at
   BEFORE UPDATE ON app_agent
   FOR EACH ROW EXECUTE FUNCTION app_set_updated_at();
-
-COMMIT;

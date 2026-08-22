@@ -9,7 +9,15 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from scaffold_app import SpecError, compile_report, compile_sql, scaffold, validate_spec
+from scaffold_app import (
+    SpecError,
+    compile_permissions,
+    compile_report,
+    compile_sql,
+    declared_capabilities,
+    scaffold,
+    validate_spec,
+)
 
 
 EXAMPLE = Path(__file__).resolve().parent.parent / "references" / "example-maintenance.app-spec.json"
@@ -78,6 +86,41 @@ class ScaffoldTests(unittest.TestCase):
         errors = validate_spec(spec)
         self.assertTrue(any("max_size_mb must be an integer between 1 and 4" in error for error in errors))
 
+    def test_unknown_administrative_capability_is_rejected(self) -> None:
+        spec = copy.deepcopy(self.spec)
+        spec["roles"][0]["capabilities"].append("execute_anything")
+        errors = validate_spec(spec)
+        self.assertTrue(any("unknown capability" in error for error in errors))
+
+    def test_explicit_capabilities_require_a_user_administrator(self) -> None:
+        spec = copy.deepcopy(self.spec)
+        for role in spec["roles"]:
+            role["capabilities"] = [
+                capability for capability in role.get("capabilities", []) if capability != "manage_users"
+            ]
+        errors = validate_spec(spec)
+        self.assertTrue(any("must declare manage_users" in error for error in errors))
+
+    def test_capabilities_must_be_declared_for_every_role(self) -> None:
+        spec = copy.deepcopy(self.spec)
+        spec["roles"][1].pop("capabilities")
+        errors = validate_spec(spec)
+        self.assertTrue(any("Every role must declare capabilities" in error for error in errors))
+
+    def test_capabilities_compile_and_legacy_specs_keep_fallback(self) -> None:
+        capabilities = declared_capabilities(self.spec)
+        self.assertIsNotNone(capabilities)
+        self.assertIn("manage_users", capabilities["admin"])
+        self.assertIn("generatedCapabilities", compile_permissions(self.spec))
+
+        legacy = copy.deepcopy(self.spec)
+        for role in legacy["roles"]:
+            role.pop("capabilities", None)
+        self.assertEqual(validate_spec(legacy), [])
+        self.assertIsNone(declared_capabilities(legacy))
+        self.assertIn("generatedCapabilities", compile_permissions(legacy))
+        self.assertIn("null", compile_permissions(legacy))
+
     def test_kanban_group_must_be_enum(self) -> None:
         spec = copy.deepcopy(self.spec)
         board = next(view for view in spec["views"] if view["type"] == "kanban")
@@ -139,6 +182,8 @@ class ScaffoldTests(unittest.TestCase):
 
     def test_sql_contains_real_tables_and_foreign_keys(self) -> None:
         sql = compile_sql(self.spec)
+        self.assertNotIn("BEGIN;", sql)
+        self.assertNotIn("COMMIT;", sql)
         self.assertIn('CREATE TABLE "equipment"', sql)
         self.assertIn('CREATE TABLE "work_order"', sql)
         self.assertIn('FOREIGN KEY ("equipment_id")', sql)
@@ -209,12 +254,22 @@ class ScaffoldTests(unittest.TestCase):
             self.assertTrue((output / "src/app/attachments/[id]/route.ts").is_file())
             self.assertTrue((output / "src/app/record-operations/actions.ts").is_file())
             self.assertTrue((output / "src/lib/attachments.ts").is_file())
+            self.assertTrue((output / "src/lib/connection.ts").is_file())
+            self.assertTrue((output / "scripts/db-connection.mjs").is_file())
             self.assertTrue((output / "src/components/pagination.tsx").is_file())
             self.assertTrue((output / "src/components/bulk-record-table.tsx").is_file())
             self.assertTrue((output / "src/components/operational-kanban.tsx").is_file())
             self.assertTrue((output / "src/components/operational-calendar.tsx").is_file())
             self.assertTrue((output / "package.json").is_file())
             self.assertIn("uuid: 11.1.1", (output / "pnpm-workspace.yaml").read_text(encoding="utf-8"))
+            runner = (output / "scripts/apply-migrations.mjs").read_text(encoding="utf-8")
+            for invariant in ('client.query("BEGIN")', "INSERT INTO app_migration", 'client.query("COMMIT")'):
+                self.assertIn(invariant, runner)
+            for migration_directory in ("database/generated", "database/custom"):
+                for migration in (output / migration_directory).glob("*.sql"):
+                    source = migration.read_text(encoding="utf-8")
+                    self.assertNotIn("BEGIN;", source)
+                    self.assertNotIn("COMMIT;", source)
 
 
 if __name__ == "__main__":

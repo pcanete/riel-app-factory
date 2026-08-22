@@ -11,7 +11,7 @@
     "roles": {
       "type": "array",
       "minItems": 1,
-      "items": {"$ref": "#/$defs/namedKey"}
+      "items": {"$ref": "#/$defs/role"}
     },
     "entities": {
       "type": "array",
@@ -41,6 +41,23 @@
         "key": {"$ref": "#/$defs/key"},
         "label": {"type": "string", "minLength": 1},
         "description": {"type": "string"}
+      }
+    },
+    "role": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "label"],
+      "properties": {
+        "key": {"$ref": "#/$defs/key"},
+        "label": {"type": "string", "minLength": 1},
+        "description": {"type": "string"},
+        "capabilities": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": ["manage_users", "manage_settings", "manage_agents", "view_audit", "view_rules"]
+          }
+        }
       }
     },
     "app": {

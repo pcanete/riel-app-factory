@@ -8,7 +8,7 @@ import {
   upsertApplicationOption,
 } from "@/features/settings/store";
 import { recordAuditEvent } from "@/lib/audit";
-import { requireUserManagementAccess } from "@/lib/auth";
+import { requireSettingsAccess } from "@/lib/auth";
 import { withTransaction } from "@/lib/db";
 
 const OPTION_NAME = /^[a-z][a-z0-9_.-]{0,63}$/;
@@ -57,7 +57,7 @@ function parseOptionValue(formData: FormData) {
 }
 
 export async function saveApplicationSettingsAction(formData: FormData) {
-  const user = await requireUserManagementAccess();
+  const user = await requireSettingsAccess();
   const locale = String(formData.get("locale") ?? "").trim();
   const timezone = String(formData.get("timezone") ?? "").trim();
   if (!/^[a-z]{2}(?:-[A-Z]{2})?$/.test(locale) || !/^[A-Za-z_]+(?:\/[A-Za-z0-9_+-]+)+$/.test(timezone)) {
@@ -78,7 +78,7 @@ export async function saveApplicationSettingsAction(formData: FormData) {
 }
 
 export async function saveApplicationOptionAction(formData: FormData) {
-  const user = await requireUserManagementAccess();
+  const user = await requireSettingsAccess();
   const option = optionIdentity(formData);
   if (RESERVED_OPTIONS.has(option.identity)) redirect("/settings?error=reserved_option");
   const parsed = parseOptionValue(formData);
@@ -97,7 +97,7 @@ export async function saveApplicationOptionAction(formData: FormData) {
 }
 
 export async function deleteApplicationOptionAction(formData: FormData) {
-  const user = await requireUserManagementAccess();
+  const user = await requireSettingsAccess();
   const option = optionIdentity(formData);
   if (RESERVED_OPTIONS.has(option.identity)) redirect("/settings?error=reserved_option");
   await withTransaction(async (client) => {

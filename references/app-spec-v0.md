@@ -39,18 +39,22 @@ Keys use `snake_case`, must match `^[a-z][a-z0-9_]*$`, and have at most 48 chara
 
 ## Roles and permissions
 
-Each role has a stable key and label. Entity permissions list one or more of `list`, `read`, `create`, `update`, and `delete`.
+Each role has a stable key and label. Entity permissions list one or more of `list`, `read`, `create`, `update`, and `delete`. Administrative capabilities are declared separately so broad entity access does not silently grant system administration.
 
 ```json
 {
   "roles": [
-    {"key": "admin", "label": "Administrador"},
-    {"key": "technician", "label": "Técnico"}
+    {
+      "key": "admin",
+      "label": "Administrador",
+      "capabilities": ["manage_users", "manage_settings", "manage_agents", "view_audit", "view_rules"]
+    },
+    {"key": "technician", "label": "Técnico", "capabilities": []}
   ]
 }
 ```
 
-Every entity must define permissions explicitly. The compiler rejects unknown roles or actions.
+Capabilities are `manage_users`, `manage_settings`, `manage_agents`, `view_audit`, and `view_rules`. Every entity must define permissions explicitly. The compiler rejects unknown roles, actions, and capabilities. Legacy AppSpecs without any `capabilities` declaration retain the previous all-entity-permissions fallback, but the build report keeps that state as an unresolved production gate.
 
 ## Entities
 

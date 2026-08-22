@@ -10,7 +10,7 @@ import {
   setManagedAgentActive,
 } from "@/features/mcp/admin";
 import { recordAuditEvent } from "@/lib/audit";
-import { requireAuditAccess } from "@/lib/auth";
+import { requireAgentManagementAccess } from "@/lib/auth";
 import { withTransaction } from "@/lib/db";
 import { runtimeSpec } from "@/lib/spec";
 
@@ -40,7 +40,7 @@ export async function createAgentAction(
   _previous: AgentCreateState,
   formData: FormData,
 ): Promise<AgentCreateState> {
-  const actor = await requireAuditAccess();
+  const actor = await requireAgentManagementAccess();
   const name = String(formData.get("name") ?? "").trim();
   const roleKey = String(formData.get("role_key") ?? "");
   const access = String(formData.get("access") ?? "write") as keyof typeof accessScopes;
@@ -86,7 +86,7 @@ export async function createAgentAction(
 }
 
 export async function setAgentStatusAction(formData: FormData) {
-  const actor = await requireAuditAccess();
+  const actor = await requireAgentManagementAccess();
   const id = String(formData.get("id") ?? "");
   const active = String(formData.get("active") ?? "") === "true";
   if (!isManagedAgentId(id)) redirect("/agents?error=not_found");

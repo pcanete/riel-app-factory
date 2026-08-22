@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { productionAuthAdapter } from "@/features/auth/adapter";
-import { generatedPermissions } from "@/generated/permissions";
+import { generatedCapabilities, generatedPermissions } from "@/generated/permissions";
 import { recordAuditEvent } from "@/lib/audit";
 import type { PermissionAction, RuntimeUser } from "@/lib/auth-types";
 import { sql, transactionSql, withTransaction } from "@/lib/db";
@@ -15,6 +15,15 @@ const permissionMatrix = generatedPermissions as unknown as Record<
   string,
   Record<string, readonly PermissionAction[]>
 >;
+
+export type AdministrativeCapability =
+  | "manage_users"
+  | "manage_settings"
+  | "manage_agents"
+  | "view_audit"
+  | "view_rules";
+
+const capabilityMatrix = generatedCapabilities as Record<string, readonly AdministrativeCapability[]> | null;
 
 type AppUserRow = {
   id: string;
@@ -177,7 +186,7 @@ export function canAccessRelationshipOptions(user: RuntimeUser, entity: EntitySp
   );
 }
 
-export function canViewAudit(user: RuntimeUser) {
+function legacyAdministrativeAccess(user: RuntimeUser) {
   return runtimeSpec.entities.every(
     (entity) =>
       hasPermission(user, entity.key, "list") &&
@@ -186,13 +195,24 @@ export function canViewAudit(user: RuntimeUser) {
   );
 }
 
+export function hasAdministrativeCapability(user: RuntimeUser, capability: AdministrativeCapability) {
+  if (capabilityMatrix) return capabilityMatrix[user.roleKey]?.includes(capability) ?? false;
+  return legacyAdministrativeAccess(user);
+}
+
+export function canViewAudit(user: RuntimeUser) {
+  return hasAdministrativeCapability(user, "view_audit");
+}
+
 export async function requireAuditAccess() {
   const user = await requireUser();
   if (!canViewAudit(user)) redirect("/forbidden");
   return user;
 }
 
-export const canManageUsers = canViewAudit;
+export function canManageUsers(user: RuntimeUser) {
+  return hasAdministrativeCapability(user, "manage_users");
+}
 
 export async function requireUserManagementAccess() {
   const user = await requireUser();
@@ -200,7 +220,29 @@ export async function requireUserManagementAccess() {
   return user;
 }
 
-export const canViewRules = canViewAudit;
+export function canManageSettings(user: RuntimeUser) {
+  return hasAdministrativeCapability(user, "manage_settings");
+}
+
+export async function requireSettingsAccess() {
+  const user = await requireUser();
+  if (!canManageSettings(user)) redirect("/forbidden");
+  return user;
+}
+
+export function canManageAgents(user: RuntimeUser) {
+  return hasAdministrativeCapability(user, "manage_agents");
+}
+
+export async function requireAgentManagementAccess() {
+  const user = await requireUser();
+  if (!canManageAgents(user)) redirect("/forbidden");
+  return user;
+}
+
+export function canViewRules(user: RuntimeUser) {
+  return hasAdministrativeCapability(user, "view_rules");
+}
 
 export async function requireRulesAccess() {
   const user = await requireUser();

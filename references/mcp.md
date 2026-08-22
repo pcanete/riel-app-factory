@@ -13,6 +13,8 @@ Herramientas de lectura:
 - `count_records`: cuenta una consulta acotada;
 - `query_records`: busca, filtra, ordena y pagina hasta 100 registros;
 - `get_record`: obtiene un registro por UUID;
+- `list_attachments`: lista metadatos y huellas de adjuntos de un registro autorizado;
+- `read_attachment`: devuelve hasta 2 MB de un adjunto autorizado en base64 después de verificar su SHA-256;
 - `export_snapshot`: exporta hasta 10 entidades y 100 registros por entidad con huella de contenido.
 
 Herramientas de escritura:
@@ -21,7 +23,7 @@ Herramientas de escritura:
 - `update_record`: modifica exclusivamente los campos enviados;
 - `delete_record`: elimina un registro y sus adjuntos con confirmación explícita.
 
-No se ofrece SQL arbitrario, ejecución de código ni acceso directo a tablas internas.
+No se ofrece SQL arbitrario, ejecución de código ni acceso directo a tablas internas. `describe_entity` indica además el nombre escribible (`writeAs`) de cada relación `belongs_to`, para que un agente no tenga que inferirlo.
 
 ## Identidad, alcances y autorización
 

@@ -1,5 +1,4 @@
 -- SAFE MCP WRITES, IDEMPOTENCY, AND AGENT-LINKED MUTATION AUDIT. SAFE TO REAPPLY.
-BEGIN;
 
 ALTER TABLE app_agent DROP CONSTRAINT IF EXISTS app_agent_scopes_check;
 ALTER TABLE app_agent ADD CONSTRAINT app_agent_scopes_check CHECK (
@@ -43,5 +42,3 @@ CREATE TABLE IF NOT EXISTS app_agent_mutation (
 
 CREATE INDEX IF NOT EXISTS app_agent_mutation_created_idx
   ON app_agent_mutation (created_at DESC);
-
-COMMIT;

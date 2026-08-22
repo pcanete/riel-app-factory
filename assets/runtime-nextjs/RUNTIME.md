@@ -5,7 +5,7 @@ This project is a local application foundation generated from `app-spec.json`.
 ## Local preview
 
 1. Start PostgreSQL with `docker compose up -d db`, or provide any PostgreSQL connection.
-2. Copy `.env.example` to `.env.local` and set `DATABASE_URL`.
+2. Copy `.env.example` to `.env.local` and set `DATABASE_URL` (or the provider's `POSTGRES_URL`).
 3. Install dependencies with `pnpm install` or `npm install`.
 4. Apply the generated migration with `pnpm db:apply`.
 5. Verify real CRUD with `pnpm db:smoke`.
@@ -13,11 +13,13 @@ This project is a local application foundation generated from `app-spec.json`.
 
 `ALLOW_UNSAFE_LOCAL_PREVIEW=true` enables a passwordless role selector only outside production. Every page and mutation still enforces the generated permission matrix on the server. Production ignores this local path. Clerk proves identity; PostgreSQL remains authoritative for account status, role, and permissions. Without both Clerk keys the production login stays closed.
 
-Every create, update, and delete operation writes `app_audit_log` in the same database transaction. Roles with full list/read/delete access across every entity can review and filter the history at `/audit`.
+Every create, update, and delete operation writes `app_audit_log` in the same database transaction. New AppSpecs declare separate administrative capabilities for users, settings, agents, audit, and rules. Legacy AppSpecs keep the former full-entity-permission fallback until they are evolved.
+
+Each migration and its `app_migration` ledger entry execute atomically. Never open a second transaction inside an individual migration. For managed PostgreSQL, prefer the provider's verified connection URL or supply `DATABASE_CA_CERT`; `DATABASE_CA_CERT_FILE` is convenient locally. `DATABASE_SSL=relaxed` disables certificate verification and is an explicit last resort, not a production default.
 
 ## User management
 
-Users with full administrative access can manage application users at `/users`: create pending identities, send Clerk invitations, assign one AppSpec role, and activate or deactivate access. User mutations are validated on the server and written to the audit log. Accounts are deactivated instead of deleted so their history remains attributable.
+Users with the `manage_users` capability can manage application users at `/users`: create pending identities, send Clerk invitations, assign one AppSpec role, and activate or deactivate access. User mutations are validated on the server and written to the audit log. Accounts are deactivated instead of deleted so their history remains attributable.
 
 Local-preview identities are read-only and the current administrator cannot deactivate their own account or remove their own role. The module intentionally does not edit role permissions at runtime: roles and their permission matrices remain versioned in AppSpec. On first production login, a verified Clerk email is atomically matched to an active `pending:` user, replaced with the stable Clerk subject, and audited.
 
@@ -70,11 +72,11 @@ These views are read-oriented. Drag-and-drop mutations, scheduling side effects,
 
 AppSpec rules execute before create, update, delete, or both create/update (`before_save`). The evaluator accepts only validated condition trees and deterministic `set` or `block` actions. Successful assignments and their rule keys are included in the same audit event as the mutation; blocked operations write nothing.
 
-Administrators can inspect the active definitions at `/rules`. The kernel deliberately rejects arbitrary expressions and does not provide approvals, schedules, email, webhooks, external writes, or AI actions.
+Users with `view_rules` can inspect the active definitions at `/rules`. The kernel deliberately rejects arbitrary expressions and does not provide approvals, schedules, email, webhooks, external writes, or AI actions.
 
 ## MCP access for external agents
 
-The application exposes a stateless Streamable HTTP endpoint at `/api/mcp` with separately scoped read, write, and delete capabilities. MCP is the default AI and agent interface: an external coordinator such as Riel, Codex, or Claude brings its own model, model provider, context, and orchestration. The application therefore requires no embedded chat or LLM credential.
+The application exposes a stateless Streamable HTTP endpoint at `/api/mcp` with separately scoped read, write, and delete capabilities. Authorized agents can also list attachments and read files up to 2 MB; returned bytes are base64-encoded and checked against their stored SHA-256 hash. Larger files need a reviewed storage adapter instead of an oversized MCP response. MCP is the default AI and agent interface: an external coordinator such as Riel, Codex, or Claude brings its own model, model provider, context, and orchestration. The application therefore requires no embedded chat or LLM credential.
 
 After applying migrations, administrators create, revoke, and reactivate agent connections at `/agents`. The interface displays the credential once and prepares a ready-to-paste Claude Code command. The CLI remains available for automation and recovery:
 
@@ -90,7 +92,7 @@ Mutation tools remain constrained by AppSpec rules, idempotency, transactional a
 
 ## Application settings
 
-`/settings` is an administrator-only surface backed by `app_setting`, a namespaced key/value registry with a native `jsonb` value. It accepts strings, numbers, booleans, objects, arrays, and null, and is the default home for non-secret module and presentation options. Use `getApplicationOption(namespace, key, fallback)` from `src/features/settings/store.ts` in client features. Keep tokens, passwords, and private credentials in deployment environment variables or an approved secret manager, never in `app_setting`.
+`/settings` requires `manage_settings` and is backed by `app_setting`, a namespaced key/value registry with a native `jsonb` value. It accepts strings, numbers, booleans, objects, arrays, and null, and is the default home for non-secret module and presentation options. Use `getApplicationOption(namespace, key, fallback)` from `src/features/settings/store.ts` in client features. Keep tokens, passwords, and private credentials in deployment environment variables or an approved secret manager, never in `app_setting`.
 
 ## Ownership
 
