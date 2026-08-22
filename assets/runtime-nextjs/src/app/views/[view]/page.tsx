@@ -133,9 +133,9 @@ async function CalendarView({ view, month, canRead, canUpdate }: { view: ViewSpe
   return (
     <>
       <div className="calendar-toolbar">
-        <Link className="button secondary" href={`/views/${view.key}?month=${monthKey(previousDate.getUTCFullYear(), previousDate.getUTCMonth() + 1)}`}>← Anterior</Link>
+        <Link className="button secondary" href={`/views/${view.key}?month=${monthKey(previousDate.getUTCFullYear(), previousDate.getUTCMonth() + 1)}`} prefetch={false}>← Anterior</Link>
         <h2>{label}</h2>
-        <Link className="button secondary" href={`/views/${view.key}?month=${monthKey(nextDate.getUTCFullYear(), nextDate.getUTCMonth() + 1)}`}>Siguiente →</Link>
+        <Link className="button secondary" href={`/views/${view.key}?month=${monthKey(nextDate.getUTCFullYear(), nextDate.getUTCMonth() + 1)}`} prefetch={false}>Siguiente →</Link>
       </div>
       <OperationalCalendar
         canReschedule={Boolean(view.allow_reschedule && canUpdate)}

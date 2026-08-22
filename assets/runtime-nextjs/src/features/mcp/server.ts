@@ -30,6 +30,7 @@ import { relationFields, requireEntity, runtimeSpec } from "@/lib/spec";
 import { deleteApplicationOption, getApplicationOptionRow, listApplicationOptions, upsertApplicationOption } from "@/features/settings/store";
 import { generatedCapabilities } from "@/generated/permissions";
 import { withTransaction } from "@/lib/db";
+import { revalidateAfterWrite } from "@/lib/revalidation";
 
 const entityKeySchema = z.string().regex(/^[a-z][a-z0-9_]{0,47}$/);
 const settingNameSchema = z.string().regex(/^[a-z][a-z0-9_.-]{0,63}$/);
@@ -494,6 +495,7 @@ export function createFactoryMcpServer(agent: AgentPrincipal) {
             };
           },
         });
+        revalidateAfterWrite(entity.key);
         return { value: mutation, resultCount: 1 };
       },
     ),
@@ -546,6 +548,7 @@ export function createFactoryMcpServer(agent: AgentPrincipal) {
             };
           },
         });
+        revalidateAfterWrite(entity.key, id);
         return { value: mutation, resultCount: 1 };
       },
     ),
@@ -594,6 +597,7 @@ export function createFactoryMcpServer(agent: AgentPrincipal) {
             };
           },
         });
+        revalidateAfterWrite(entity.key, id);
         return { value: mutation, resultCount: 1 };
       },
     ),

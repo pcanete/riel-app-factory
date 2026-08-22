@@ -1,5 +1,9 @@
-import { Pool, type PoolClient, type QueryResultRow } from "pg";
+import { Pool, types, type PoolClient, type QueryResultRow } from "pg";
 import { databaseConfig } from "@/lib/connection";
+
+// PostgreSQL `date` represents a civil date without time or timezone. Keeping
+// it as YYYY-MM-DD prevents the server timezone from moving it to another day.
+types.setTypeParser(types.builtins.DATE, (value) => value);
 
 const globalForDb = globalThis as unknown as { factoryPool?: Pool };
 

@@ -1,11 +1,11 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import type { PoolClient } from "pg";
 import { recordAuditEvent } from "@/lib/audit";
 import { requirePermission } from "@/lib/auth";
 import { withTransaction } from "@/lib/db";
 import { getRecord, updateRecord } from "@/lib/repository";
+import { revalidateAfterWrite } from "@/lib/revalidation";
 import { applyRules, RuleBlockedError } from "@/lib/rules";
 import { type FieldSpec, requireEntity, requireView, runtimeSpec } from "@/lib/spec";
 
@@ -28,13 +28,6 @@ function resultError(error: unknown): RecordOperationResult {
     "Seleccioná entre 1 y 100 registros.",
   ].includes(error.message)) return { ok: false, error: error.message };
   return { ok: false, error: "No se pudo completar la operación. Revisá los datos e intentá nuevamente." };
-}
-
-function revalidateEntity(entityKey: string, viewKey: string) {
-  revalidatePath("/");
-  revalidatePath(`/records/${entityKey}`);
-  revalidatePath(`/views/${viewKey}`);
-  revalidatePath("/audit");
 }
 
 function bulkValue(field: FieldSpec, rawValue: string) {
@@ -102,7 +95,7 @@ export async function bulkSetRecordsAction(
   } catch (error) {
     return resultError(error);
   }
-  revalidateEntity(entity.key, view.key);
+  revalidateAfterWrite(entity.key);
   return { ok: true, updated: ids.length };
 }
 
@@ -128,7 +121,7 @@ export async function moveRecordAction(viewKey: string, recordId: string, target
   } catch (error) {
     return resultError(error);
   }
-  revalidateEntity(entity.key, view.key);
+  revalidateAfterWrite(entity.key);
   return { ok: true, updated: 1 };
 }
 
@@ -228,6 +221,6 @@ export async function rescheduleRecordAction(viewKey: string, recordId: string, 
   } catch (error) {
     return resultError(error);
   }
-  revalidateEntity(entity.key, view.key);
+  revalidateAfterWrite(entity.key);
   return { ok: true, updated: 1 };
 }

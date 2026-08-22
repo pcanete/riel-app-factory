@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { recordAuditEvent } from "@/lib/audit";
 import { requirePermission } from "@/lib/auth";
@@ -8,6 +7,7 @@ import { parseAndValidateImport, type ImportIssue } from "@/lib/data-transfer";
 import { withTransaction } from "@/lib/db";
 import { completeImportBatch, createImportBatch, lockImportBatch } from "@/lib/import-batches";
 import { getRecord, insertRecord } from "@/lib/repository";
+import { revalidateAfterWrite } from "@/lib/revalidation";
 import { applyRules } from "@/lib/rules";
 import { requireEntity } from "@/lib/spec";
 
@@ -78,8 +78,6 @@ export async function confirmImportAction(entityKey: string, batchId: string) {
     failed = true;
   }
   if (failed) redirect(`/records/${entityKey}/import?batch=${batchId}&error=commit`);
-  revalidatePath("/");
-  revalidatePath(`/records/${entityKey}`);
-  revalidatePath("/audit");
+  revalidateAfterWrite(entityKey);
   redirect(`/records/${entityKey}?imported=${imported}`);
 }
