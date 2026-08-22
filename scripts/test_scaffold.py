@@ -297,6 +297,7 @@ class ScaffoldTests(unittest.TestCase):
             self.assertIn("types.setTypeParser(types.builtins.DATE", database_runtime)
             calendar_view = (output / "src/app/views/[view]/page.tsx").read_text(encoding="utf-8")
             self.assertEqual(calendar_view.count("prefetch={false}"), 2)
+            self.assertIn('key={`${view.key}-${monthKey(selected.year, selected.month)}`}', calendar_view)
             revalidation = (output / "src/lib/revalidation.ts").read_text(encoding="utf-8")
             self.assertIn('revalidatePath("/views/[view]", "page")', revalidation)
             actions = (output / "src/app/actions.ts").read_text(encoding="utf-8")

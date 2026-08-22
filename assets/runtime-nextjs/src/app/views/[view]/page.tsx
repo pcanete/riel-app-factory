@@ -146,6 +146,7 @@ async function CalendarView({ view, month, canRead, canUpdate }: { view: ViewSpe
           dateKey: recordDateKey(record[dateFieldKey], timezone),
           href: canRead ? `/records/${entity.key}/${record.id}` : undefined,
         }))}
+        key={`${view.key}-${monthKey(selected.year, selected.month)}`}
         viewKey={view.key}
       />
     </>
