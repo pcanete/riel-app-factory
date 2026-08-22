@@ -39,6 +39,22 @@ function FieldControl({ field, value }: { field: FieldSpec; value: unknown }) {
       </select>
     );
   }
+  if (field.type === "tags") {
+    const selected = Array.isArray(value ?? field.default) ? (value ?? field.default) as string[] : [];
+    if (field.options?.length) {
+      return (
+        <div className="tag-options" id={field.key}>
+          {field.options.map((option) => (
+            <label className="checkbox" key={option.key}>
+              <input defaultChecked={selected.includes(option.key)} name={field.key} type="checkbox" value={option.key} />
+              <span>{option.label}</span>
+            </label>
+          ))}
+        </div>
+      );
+    }
+    return <input className="control" defaultValue={selected.join(", ")} id={field.key} name={field.key} placeholder="Separadas por coma" required={field.required} type="text" />;
+  }
   if (field.type === "long_text" || field.type === "json" || field.type === "file") {
     return <textarea className="control" defaultValue={inputValue(field, value)} id={field.key} name={field.key} required={field.required} />;
   }
@@ -75,7 +91,7 @@ export function RecordForm({ entity, record, relationshipOptions }: Props) {
     <form action={action} className="form-card">
       <div className="form-grid">
         {entity.fields.map((field) => (
-          <div className={`field ${["long_text", "json", "file"].includes(field.type) ? "full" : ""}`} key={field.key}>
+          <div className={`field ${["long_text", "json", "file", "tags"].includes(field.type) ? "full" : ""}`} key={field.key}>
             <label className="field-label" htmlFor={field.key}>{field.label}{field.required ? " *" : ""}</label>
             <FieldControl field={field} value={record?.[field.key]} />
             {field.help && <span className="field-help">{field.help}</span>}

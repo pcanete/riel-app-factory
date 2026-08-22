@@ -63,9 +63,10 @@ export async function recordAuditEvent(
   );
 }
 
-export async function listAuditEvents(filters: { entityKey?: string; action?: AuditAction }) {
+export type AuditFilters = { entityKey?: string; action?: AuditAction };
+
+function auditWhere(filters: AuditFilters, values: unknown[]) {
   const conditions: string[] = [];
-  const values: unknown[] = [];
   if (filters.entityKey) {
     values.push(filters.entityKey);
     conditions.push(`log.entity_key = $${values.length}`);
@@ -74,7 +75,23 @@ export async function listAuditEvents(filters: { entityKey?: string; action?: Au
     values.push(filters.action);
     conditions.push(`log.action = $${values.length}`);
   }
-  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+  return conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+}
+
+export async function countAuditEvents(filters: AuditFilters = {}) {
+  const values: unknown[] = [];
+  const where = auditWhere(filters, values);
+  const rows = await sql<{ total: number }>(`SELECT count(*)::int AS total FROM app_audit_log AS log ${where}`, values);
+  return rows[0]?.total ?? 0;
+}
+
+export async function listAuditEvents(filters: AuditFilters & { limit?: number; offset?: number } = {}) {
+  const values: unknown[] = [];
+  const where = auditWhere(filters, values);
+  values.push(Math.min(200, Math.max(1, filters.limit ?? 50)));
+  const limit = `$${values.length}`;
+  values.push(Math.max(0, filters.offset ?? 0));
+  const offset = `$${values.length}`;
   return sql<AuditEvent>(
     `SELECT log.id,
             log.actor_id,
@@ -92,7 +109,7 @@ export async function listAuditEvents(filters: { entityKey?: string; action?: Au
        LEFT JOIN app_agent AS agent ON agent.id = log.agent_id
        ${where}
       ORDER BY log.created_at DESC
-      LIMIT 200`,
+      LIMIT ${limit} OFFSET ${offset}`,
     values,
   );
 }

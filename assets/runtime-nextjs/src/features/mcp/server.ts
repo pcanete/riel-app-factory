@@ -27,8 +27,12 @@ import {
 } from "@/lib/attachments";
 import { applyRules } from "@/lib/rules";
 import { relationFields, requireEntity, runtimeSpec } from "@/lib/spec";
+import { deleteApplicationOption, getApplicationOptionRow, listApplicationOptions, upsertApplicationOption } from "@/features/settings/store";
+import { generatedCapabilities } from "@/generated/permissions";
+import { withTransaction } from "@/lib/db";
 
 const entityKeySchema = z.string().regex(/^[a-z][a-z0-9_]{0,47}$/);
+const settingNameSchema = z.string().regex(/^[a-z][a-z0-9_.-]{0,63}$/);
 const filtersSchema = z.record(z.string(), z.string().max(500)).optional();
 const idempotencyKeySchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/);
 const MCP_ATTACHMENT_MAX_BYTES = 2 * 1024 * 1024;
@@ -161,6 +165,84 @@ export function createFactoryMcpServer(agent: AgentPrincipal) {
     }),
   );
 
+  const roleCapabilities = generatedCapabilities?.[agent.roleKey] ?? [];
+  const canManageSettings = roleCapabilities.includes("manage_settings");
+  const requireSettingsRead = () => {
+    if (!agent.scopes.includes("settings:read")) throw new Error("La credencial no tiene alcance settings:read.");
+  };
+  const requireSettingsWrite = () => {
+    if (!canManageSettings) throw new Error("El rol del agente no puede administrar configuración.");
+    if (!agent.scopes.includes("settings:write")) throw new Error("La credencial no tiene alcance settings:write.");
+  };
+
+  server.registerTool(
+    "list_settings",
+    {
+      description: "Lista opciones globales de configuración, opcionalmente por namespace.",
+      inputSchema: z.object({ namespace: settingNameSchema.optional() }),
+    },
+    async ({ namespace }) => traced(agent, "list_settings", { namespace }, async () => {
+      requireSettingsRead();
+      const settings = await listApplicationOptions(namespace);
+      return { value: { namespace: namespace ?? null, settings }, resultCount: settings.length };
+    }),
+  );
+
+  server.registerTool(
+    "get_setting",
+    {
+      description: "Obtiene una opción global de configuración.",
+      inputSchema: z.object({ namespace: settingNameSchema, key: settingNameSchema }),
+    },
+    async ({ namespace, key }) => traced(agent, "get_setting", { namespace, key }, async () => {
+      requireSettingsRead();
+      const setting = await getApplicationOptionRow(namespace, key);
+      return { value: { found: Boolean(setting), setting }, resultCount: setting ? 1 : 0 };
+    }),
+  );
+
+  server.registerTool(
+    "set_setting",
+    {
+      description: "Crea o reemplaza una opción global JSON. Es configuración, no datos de negocio.",
+      inputSchema: z.object({ namespace: settingNameSchema, key: settingNameSchema, value: z.unknown() }),
+    },
+    async ({ namespace, key, value }) => traced(agent, "set_setting", { namespace, key }, async (agentEventId) => {
+      requireSettingsWrite();
+      const setting = await withTransaction(async (client) => {
+        const saved = await upsertApplicationOption(client, { kind: "agent", id: agent.id }, { namespace, key, value });
+        await recordAuditEvent(client, {
+          agentId: agent.id, agentEventId, entityKey: "app_setting", recordId: `${namespace}.${key}`,
+          action: "application_option_update", changes: { namespace, key, source: "mcp" },
+        });
+        return saved;
+      });
+      return { value: { setting }, resultCount: 1 };
+    }),
+  );
+
+  server.registerTool(
+    "delete_setting",
+    {
+      description: "Elimina una opción global con confirmación explícita.",
+      inputSchema: z.object({ namespace: settingNameSchema, key: settingNameSchema, confirm: z.literal(true) }),
+    },
+    async ({ namespace, key }) => traced(agent, "delete_setting", { namespace, key }, async (agentEventId) => {
+      requireSettingsWrite();
+      const previous = await withTransaction(async (client) => {
+        const deleted = await deleteApplicationOption(client, namespace, key);
+        if (!deleted) return null;
+        await recordAuditEvent(client, {
+          agentId: agent.id, agentEventId, entityKey: "app_setting", recordId: `${namespace}.${key}`,
+          action: "application_option_delete", changes: { namespace, key, previous: deleted.value, source: "mcp" },
+        });
+        return deleted;
+      });
+      if (!previous) throw new Error(`La opción ${namespace}.${key} no existe.`);
+      return { value: { deleted: true, previous: previous.value }, resultCount: 1 };
+    }),
+  );
+
   server.registerTool(
     "count_records",
     {
@@ -203,7 +285,10 @@ export function createFactoryMcpServer(agent: AgentPrincipal) {
       { entityKey, search, filters, sort, direction, limit, offset },
       async () => {
         const entity = requireAgentPermission(agent, entityKey, "list");
-        const allowedFields = new Set(entity.fields.map((field) => field.key));
+        const allowedFields = new Set([
+          ...entity.fields.map((field) => field.key),
+          ...relationFields(entity).flatMap((relationship) => [relationship.key, `${relationship.key}_id`]),
+        ]);
         const safeFilters = Object.fromEntries(
           Object.entries(filters ?? {}).filter(([field]) => allowedFields.has(field)),
         );

@@ -169,6 +169,31 @@ class EvolutionTests(unittest.TestCase):
         reduction = plan_evolution(self.spec, reduced)
         self.assertTrue(any("Removing enum values" in item for item in reduction.blocked))
 
+    def test_tags_addition_and_option_evolution_are_safe(self) -> None:
+        with_tags = copy.deepcopy(self.spec)
+        equipment = next(entity for entity in with_tags["entities"] if entity["key"] == "equipment")
+        equipment["fields"].append({
+            "key": "keywords", "label": "Palabras clave", "type": "tags", "searchable": True,
+            "options": [{"key": "active", "label": "Activa"}],
+        })
+        addition = plan_evolution(self.spec, with_tags)
+        self.assertTrue(addition.safe_to_apply)
+        sql = "\n".join(addition.sql)
+        self.assertIn('ADD COLUMN "keywords" text[] DEFAULT ARRAY[]::text[]', sql)
+        self.assertIn('USING GIN ("keywords")', sql)
+
+        expanded = copy.deepcopy(with_tags)
+        labels = next(field for entity in expanded["entities"] if entity["key"] == "equipment" for field in entity["fields"] if field["key"] == "keywords")
+        labels["options"].append({"key": "priority", "label": "Prioritaria"})
+        expansion = plan_evolution(with_tags, expanded)
+        self.assertTrue(expansion.safe_to_apply)
+
+        reduced = copy.deepcopy(expanded)
+        reduced_labels = next(field for entity in reduced["entities"] if entity["key"] == "equipment" for field in entity["fields"] if field["key"] == "keywords")
+        reduced_labels["options"] = reduced_labels["options"][:-1]
+        reduction = plan_evolution(expanded, reduced)
+        self.assertTrue(any("Removing tag options" in item for item in reduction.blocked))
+
     def test_apply_preserves_extensions_and_creates_immutable_migration(self) -> None:
         proposed = copy.deepcopy(self.spec)
         work_order = next(entity for entity in proposed["entities"] if entity["key"] == "work_order")
@@ -196,6 +221,8 @@ class EvolutionTests(unittest.TestCase):
             self.assertIsNotNone(migration)
             self.assertEqual(migration.name, "002_add_estimated_hours.sql")
             self.assertIn('ADD COLUMN "estimated_hours" numeric(18,4)', migration.read_text(encoding="utf-8"))
+            self.assertNotIn("BEGIN;", migration.read_text(encoding="utf-8"))
+            self.assertNotIn("COMMIT;", migration.read_text(encoding="utf-8"))
             self.assertEqual(initial_migration.read_text(encoding="utf-8"), initial_source)
             self.assertEqual(extension.read_text(encoding="utf-8"), "export const preserved = true;\n")
             current = json.loads((project / "app-spec.json").read_text(encoding="utf-8"))

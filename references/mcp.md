@@ -39,9 +39,11 @@ Los niveles disponibles son:
 
 - `read`: `schema:read` y `records:read`;
 - `write`: agrega `records:write` para crear y actualizar;
-- `full`: agrega también `records:delete`.
+- `full`: agrega `records:delete`, `settings:read` y `settings:write`.
 
 El token se imprime una sola vez. Guardalo como secreto del agente consumidor; PostgreSQL conserva sólo su hash SHA-256. El rol debe existir en AppSpec. Una operación se autoriza únicamente cuando coinciden el alcance de la credencial y el permiso `list`, `read`, `create`, `update` o `delete` de ese rol sobre la entidad.
+
+Las herramientas `list_settings`, `get_setting`, `set_setting` y `delete_setting` operan la configuración global clave/valor. Leer exige `settings:read`; escribir exige simultáneamente `settings:write` y la capacidad de rol `manage_settings`. Cada cambio queda atribuido al agente y auditado. Esta tabla es para configuración JSON, no para reemplazar entidades de negocio.
 
 Conectá `https://<host>/api/mcp` con `Authorization: Bearer <token>`. En Vercel se admiten automáticamente la URL del deployment, la rama y el dominio estable indicado por `VERCEL_PROJECT_PRODUCTION_URL`. Configurá correctamente `NEXT_PUBLIC_APP_URL` y usá `MCP_ALLOWED_HOSTS` sólo para hosts adicionales explícitos.
 

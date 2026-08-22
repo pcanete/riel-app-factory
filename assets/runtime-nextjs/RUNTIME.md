@@ -15,7 +15,7 @@ This project is a local application foundation generated from `app-spec.json`.
 
 Every create, update, and delete operation writes `app_audit_log` in the same database transaction. New AppSpecs declare separate administrative capabilities for users, settings, agents, audit, and rules. Legacy AppSpecs keep the former full-entity-permission fallback until they are evolved.
 
-Each migration and its `app_migration` ledger entry execute atomically. Never open a second transaction inside an individual migration. For managed PostgreSQL, prefer the provider's verified connection URL or supply `DATABASE_CA_CERT`; `DATABASE_CA_CERT_FILE` is convenient locally. `DATABASE_SSL=relaxed` disables certificate verification and is an explicit last resort, not a production default.
+Each migration and its `app_migration` ledger entry execute atomically. Never open a second transaction inside an individual migration. Before execution, the runner blocks destructive SQL when the affected table or column contains data; any exception must name one exact migration in `ALLOW_DESTRUCTIVE_MIGRATIONS` after backup and restore verification. For managed PostgreSQL, prefer the provider's verified connection URL or supply `DATABASE_CA_CERT`; `DATABASE_CA_CERT_FILE` is convenient locally. `DATABASE_SSL=relaxed` disables certificate verification and is an explicit last resort, not a production default.
 
 ## User management
 
@@ -84,7 +84,7 @@ After applying migrations, administrators create, revoke, and reactivate agent c
 pnpm mcp:agent:create -- --name "Riel" --role admin --access write --expires-days 90
 ```
 
-The token is displayed once and stored only as a SHA-256 hash. Send it as `Authorization: Bearer <token>` to `https://<application-host>/api/mcp`. Configure `NEXT_PUBLIC_APP_URL` correctly and use `MCP_ALLOWED_HOSTS` only for explicit additional hosts. `--access read` permits discovery and bounded queries; `write` adds idempotent create/update; `full` also adds explicitly confirmed deletion. AppSpec role permissions, deterministic rules, payload/rate bounds, transactional audit, and agent attribution still apply. Returned business records and plaintext tokens are not copied into the tool-event log.
+The token is displayed once and stored only as a SHA-256 hash. Send it as `Authorization: Bearer <token>` to `https://<application-host>/api/mcp`. Configure `NEXT_PUBLIC_APP_URL` correctly and use `MCP_ALLOWED_HOSTS` only for explicit additional hosts. `--access read` permits discovery and bounded queries; `write` adds idempotent create/update; `full` also adds explicitly confirmed deletion plus `settings:read` and `settings:write`. Settings writes additionally require the role capability `manage_settings` and preserve agent attribution. AppSpec role permissions, deterministic rules, payload/rate bounds, transactional audit, and agent attribution still apply. Returned business records and plaintext tokens are not copied into the tool-event log.
 
 Before production, run `pnpm mcp:smoke:write` against a local or disposable database with representative entity values. Do not use production as the first write test.
 

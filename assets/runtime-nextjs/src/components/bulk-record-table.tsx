@@ -72,9 +72,9 @@ export function BulkRecordTable({
         <button className="button" disabled={pending || !selected.length || !rawValue} onClick={applyBulk} type="button">{pending ? "Aplicando…" : "Aplicar al lote"}</button>
       </div>
       {message && <div aria-live="polite" className={`notice ${message.kind === "success" ? "success" : "import-error"}`}>{message.text}</div>}
-      <div className="table-wrap">
+    <div className="table-wrap mobile-card-wrap">
         {records.length ? (
-          <table>
+          <table className="mobile-cards">
             <thead>
               <tr>
                 <th className="selection-cell"><input aria-label="Seleccionar esta página" checked={allSelected} onChange={togglePage} type="checkbox" /></th>
@@ -89,11 +89,11 @@ export function BulkRecordTable({
                   <tr key={id}>
                     <td className="selection-cell"><input aria-label={`Seleccionar ${formatValue(record[entity.title_field], locale)}`} checked={selected.includes(id)} onChange={() => setSelected((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id])} type="checkbox" /></td>
                     {fields.map((field) => (
-                      <td key={field.key}>
+                      <td data-label={field.label} key={field.key}>
                         {field.key === entity.title_field && canRead ? <Link className="record-link" href={`/records/${entity.key}/${id}`}>{formatFieldValue(field, record[field.key], locale)}</Link> : formatFieldValue(field, record[field.key], locale)}
                       </td>
                     ))}
-                    <td>{formatDateTimeValue(record.updated_at, locale)}</td>
+                    <td data-label="Actualizado">{formatDateTimeValue(record.updated_at, locale)}</td>
                   </tr>
                 );
               })}

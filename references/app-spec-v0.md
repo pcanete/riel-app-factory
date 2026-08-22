@@ -90,6 +90,7 @@ Supported v0 field types:
 | `email` | `text` | UI semantics and validation |
 | `url` | `text` | UI semantics and validation |
 | `enum` | `text` + check | Requires non-empty `options` |
+| `tags` | `text[]` + GIN | Multiple normalized labels; optional fixed `options` |
 | `file` | `jsonb` | Storage metadata, not file bytes |
 | `json` | `jsonb` | Escape hatch; prefer explicit fields |
 
@@ -97,8 +98,10 @@ Field options:
 
 - `required`, `unique`, `searchable`: booleans.
 - `default`: scalar compatible with the type.
-- `options`: array of `{key,label}` for enum fields.
+- `options`: array of `{key,label}` for enum fields and optional closed vocabularies for tags.
 - `help`: user-facing explanation.
+
+`tags` accepts up to 50 distinct labels of 48 characters each. The runtime normalizes them to lowercase, forms collect every selected checkbox, filters require all requested labels, and CSV/XLSX use comma-separated values. A required tags field must contain at least one label. Removing an allowed tag option is a reviewed data migration because existing records may still use it.
 
 Entities may opt into universal record attachments:
 

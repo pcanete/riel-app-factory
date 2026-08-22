@@ -11,6 +11,7 @@ export type FieldType =
   | "email"
   | "url"
   | "enum"
+  | "tags"
   | "file"
   | "json";
 

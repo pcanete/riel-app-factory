@@ -3,6 +3,7 @@ import { sql, transactionSql } from "@/lib/db";
 import { type EntitySpec, type FieldSpec, relationFields, requireEntity } from "@/lib/spec";
 
 const IDENTIFIER = /^[a-z][a-z0-9_]{0,47}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function queryRows<T extends QueryResultRow = QueryResultRow>(
   client: PoolClient | undefined,
@@ -54,15 +55,32 @@ function listWhere(entity: EntitySpec, options: ListRecordOptions) {
   const fieldMap = new Map(entity.fields.map((field) => [field.key, field]));
   const values: unknown[] = [];
   const conditions: string[] = [];
+  const relationColumns = new Map(relationFields(entity).flatMap((relationship) => [
+    [relationship.key, `${relationship.key}_id`] as const,
+    [`${relationship.key}_id`, `${relationship.key}_id`] as const,
+  ]));
   if (options.search?.trim() && searchable.length) {
     values.push(`%${options.search.trim()}%`);
-    conditions.push(`(${searchable.map((field) => `CAST(${identifier(field.key)} AS text) ILIKE $${values.length}`).join(" OR ")})`);
+    conditions.push(`(${searchable.map((field) => field.type === "tags" ? `array_to_string(${identifier(field.key)}, ' ') ILIKE $${values.length}` : `CAST(${identifier(field.key)} AS text) ILIKE $${values.length}`).join(" OR ")})`);
   }
   for (const [fieldKey, rawValue] of Object.entries(options.filters ?? {})) {
+    const relationColumn = relationColumns.get(fieldKey);
+    const relationValue = rawValue.trim();
+    if (relationColumn) {
+      if (!UUID.test(relationValue)) continue;
+      values.push(relationValue);
+      conditions.push(`${identifier(relationColumn)} = $${values.length}::uuid`);
+      continue;
+    }
     const field = fieldMap.get(fieldKey);
     const filter = rawValue.trim();
     if (!field || !filter) continue;
-    if (field.type === "boolean") {
+    if (field.type === "tags") {
+      const tags = filter.split(",").map((tag) => tag.trim().toLocaleLowerCase("es")).filter(Boolean);
+      if (!tags.length) continue;
+      values.push(tags);
+      conditions.push(`${identifier(field.key)} @> $${values.length}::text[]`);
+    } else if (field.type === "boolean") {
       if (!new Set(["true", "false"]).has(filter)) continue;
       values.push(filter === "true");
       conditions.push(`${identifier(field.key)} = $${values.length}`);
@@ -190,8 +208,25 @@ export async function relationshipOptions(entity: EntitySpec) {
   return Object.fromEntries(entries) as Record<string, Array<{ id: string; label: string }>>;
 }
 
-function parseScalar(field: FieldSpec, raw: FormDataEntryValue | null, mode: "create" | "update") {
+function parseTags(field: FieldSpec, raw: unknown): string[] {
+  const source = Array.isArray(raw) ? raw : typeof raw === "string" ? raw.split(",") : [];
+  const tags = [...new Set(source.map((item) => {
+    if (typeof item !== "string") throw new Error(`${field.label}: cada etiqueta debe ser texto.`);
+    return item.trim().toLocaleLowerCase("es");
+  }).filter(Boolean))];
+  if (tags.length > 50) throw new Error(`${field.label}: no se admiten más de 50 etiquetas.`);
+  const tooLong = tags.find((tag) => tag.length > 48);
+  if (tooLong) throw new Error(`${field.label}: cada etiqueta admite hasta 48 caracteres.`);
+  const allowed = field.options?.map((option) => option.key);
+  const invalid = allowed ? tags.find((tag) => !allowed.includes(tag)) : undefined;
+  if (invalid) throw new Error(`${field.label}: "${invalid}" no es una opción válida.`);
+  if (field.required && !tags.length) throw new Error(`El campo ${field.label} es obligatorio.`);
+  return tags;
+}
+
+function parseScalar(field: FieldSpec, raw: FormDataEntryValue | FormDataEntryValue[] | null, mode: "create" | "update") {
   if (field.type === "boolean") return raw !== null;
+  if (field.type === "tags") return parseTags(field, raw);
   const value = typeof raw === "string" ? raw.trim() : "";
   if (!value) {
     if (field.required && !(mode === "create" && "default" in field)) {
@@ -223,6 +258,7 @@ function parseObjectScalar(field: FieldSpec, raw: unknown, mode: "create" | "upd
     }
     return undefined;
   }
+  if (field.type === "tags") return parseTags(field, raw);
   if (raw === null || raw === "") {
     if (field.required) throw new Error(`El campo ${field.label} es obligatorio.`);
     return null;
@@ -277,9 +313,15 @@ export function recordInputFromObject(
   mode: "create" | "update",
 ) {
   const fieldKeys = new Set(entity.fields.map((field) => field.key));
-  const relationshipKeys = new Set(relationFields(entity).map((relationship) => `${relationship.key}_id`));
+  const relationshipKeys = new Set(relationFields(entity).flatMap((relationship) => [relationship.key, `${relationship.key}_id`]));
   const unknown = Object.keys(input).filter((key) => !fieldKeys.has(key) && !relationshipKeys.has(key));
   if (unknown.length) throw new Error(`Campos desconocidos: ${unknown.join(", ")}.`);
+
+  for (const relationship of relationFields(entity)) {
+    if (relationship.key in input && `${relationship.key}_id` in input) {
+      throw new Error(`${relationship.label} llegó dos veces; usá ${relationship.key} o ${relationship.key}_id.`);
+    }
+  }
 
   const result: Record<string, unknown> = {};
   for (const field of entity.fields) {
@@ -288,7 +330,7 @@ export function recordInputFromObject(
   }
   for (const relationship of relationFields(entity)) {
     const key = `${relationship.key}_id`;
-    const raw = input[key];
+    const raw = key in input ? input[key] : input[relationship.key];
     if (raw === undefined) {
       if (mode === "create" && relationship.required) throw new Error(`${relationship.label} es obligatorio.`);
       continue;
@@ -310,7 +352,7 @@ export function recordInputFromObject(
 export function recordInputFromForm(entity: EntitySpec, formData: FormData, mode: "create" | "update") {
   const result: Record<string, unknown> = {};
   for (const field of entity.fields) {
-    const value = parseScalar(field, formData.get(field.key), mode);
+    const value = parseScalar(field, field.type === "tags" ? formData.getAll(field.key) : formData.get(field.key), mode);
     if (value !== undefined) result[field.key] = value;
   }
   for (const relationship of relationFields(entity)) {

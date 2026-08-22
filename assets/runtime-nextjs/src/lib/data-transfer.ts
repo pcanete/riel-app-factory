@@ -209,6 +209,16 @@ function scalarValue(field: FieldSpec, raw: unknown): unknown {
     if (!option) throw new Error(`Valor no permitido. Opciones: ${field.options?.map((item) => item.key).join(", ")}.`);
     return option.key;
   }
+  if (field.type === "tags") {
+    const rawTags = Array.isArray(raw) ? raw : text.split(",");
+    const tags = [...new Set(rawTags.map((item) => String(item).trim().toLocaleLowerCase("es")).filter(Boolean))];
+    if (tags.length > 50) throw new Error("No se admiten más de 50 etiquetas.");
+    if (tags.some((tag) => tag.length > 48)) throw new Error("Cada etiqueta admite hasta 48 caracteres.");
+    const allowed = field.options?.map((option) => option.key);
+    const invalid = allowed ? tags.find((tag) => !allowed.includes(tag)) : undefined;
+    if (invalid) throw new Error(`Etiqueta no permitida: ${invalid}.`);
+    return tags;
+  }
   if (field.type === "json" || field.type === "file") {
     if (typeof raw === "object" && raw !== null && !(raw instanceof Date)) return raw;
     try {
@@ -380,11 +390,15 @@ function csvCell(value: unknown) {
   return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
+function transferValue(value: unknown) {
+  return Array.isArray(value) && value.every((item) => typeof item === "string") ? value.join(", ") : value;
+}
+
 export function buildCsv(entity: EntitySpec, records: Array<Record<string, unknown>>, template: boolean) {
   const columns = template ? importColumns(entity) : exportColumns(entity);
   const lines = [columns.map((column) => csvCell(column.key)).join(",")];
   if (!template) {
-    for (const record of records) lines.push(columns.map((column) => csvCell(record[column.key])).join(","));
+    for (const record of records) lines.push(columns.map((column) => csvCell(transferValue(record[column.key]))).join(","));
   }
   return Buffer.from(`\uFEFF${lines.join("\r\n")}\r\n`, "utf8");
 }
@@ -398,7 +412,7 @@ export async function buildXlsx(entity: EntitySpec, records: Array<Record<string
   worksheet.columns = columns.map((column) => ({ header: column.key, key: column.key, width: Math.max(14, Math.min(34, column.label.length + 5)) }));
   worksheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
   worksheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF334155" } };
-  if (!template) records.forEach((record) => worksheet.addRow(Object.fromEntries(columns.map((column) => [column.key, record[column.key] ?? null]))));
+  if (!template) records.forEach((record) => worksheet.addRow(Object.fromEntries(columns.map((column) => [column.key, transferValue(record[column.key]) ?? null]))));
 
   if (template) {
     const dictionary = workbook.addWorksheet("Diccionario");
@@ -411,7 +425,7 @@ export async function buildXlsx(entity: EntitySpec, records: Array<Record<string
     ];
     dictionary.getRow(1).font = { bold: true };
     for (const column of importColumns(entity)) {
-      const values = column.field?.type === "enum"
+      const values = column.field?.type === "enum" || column.field?.type === "tags"
         ? column.field.options?.map((option) => `${option.key} (${option.label})`).join(", ")
         : column.relationship ? `ID o nombre exacto de ${requireEntity(column.relationship.target).label}` : "";
       dictionary.addRow({ key: column.key, label: column.label, type: column.type, required: column.required ? "Sí" : "No", values });

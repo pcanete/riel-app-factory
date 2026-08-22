@@ -8,6 +8,7 @@ Riel no es la fábrica. Riel puede coordinar agentes que consuman el endpoint MC
 
 - entidades, campos, relaciones, roles y permisos del servidor;
 - migraciones PostgreSQL, CRUD auditado, importación, exportación y adjuntos;
+- campos de etiquetas múltiples con búsqueda GIN e importación/exportación consistente;
 - vistas de tabla, kanban, calendario y dashboard;
 - reglas deterministas de validación y mutación;
 - autenticación con Clerk y gestión de usuarios de la aplicación;
@@ -72,7 +73,9 @@ pnpm mcp:agent:create -- --name "Operador" --role gestor --access write --expire
 pnpm mcp:agent:create -- --name "Administrador" --role admin --access full --expires-days 30
 ```
 
-El token se muestra una sola vez y PostgreSQL conserva únicamente su hash SHA-256. La autorización combina los alcances de la credencial con los permisos del rol definido en AppSpec. Cada mutación exige una clave de idempotencia, ejecuta reglas deterministas y registra en la misma transacción la identidad del agente. La eliminación requiere alcance independiente y confirmación explícita.
+El token se muestra una sola vez y PostgreSQL conserva únicamente su hash SHA-256. La autorización combina los alcances de la credencial con los permisos del rol definido en AppSpec. Cada mutación exige una clave de idempotencia, ejecuta reglas deterministas y registra en la misma transacción la identidad del agente. La eliminación requiere alcance independiente y confirmación explícita. Las conexiones de control total pueden además leer y escribir la tabla clave/valor mediante `settings:read` y `settings:write`, sólo si su rol declara `manage_settings`.
+
+Antes de aplicar una migración, el runner detecta `DROP TABLE`, `TRUNCATE`, `DROP COLUMN`, `DELETE` sin `WHERE` y destrucción de esquemas o bases. Si el objeto contiene datos, el despliegue se detiene y exige respaldo verificado y autorización por el nombre exacto de la migración; no existe una habilitación destructiva global.
 
 Conectá el agente a `https://tu-aplicacion.example/api/mcp` usando `Authorization: Bearer <token>`. Cada herramienta queda registrada en `app_agent_event` sin copiar al log los datos comerciales devueltos.
 

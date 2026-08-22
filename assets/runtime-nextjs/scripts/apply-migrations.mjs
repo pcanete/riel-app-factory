@@ -3,6 +3,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import pg from "pg";
 import { databaseConfig } from "./db-connection.mjs";
+import { allowedDestructiveMigrations, blockedMigrationMessage, destructiveOperations, operationsWithData } from "./destructive-guard.mjs";
 
 const { Client } = pg;
 
@@ -35,6 +36,7 @@ try {
       applied_at timestamptz NOT NULL DEFAULT now()
     )
   `);
+  const allowed = allowedDestructiveMigrations();
 
   for (const migration of migrations) {
     const { file, name, directory } = migration;
@@ -51,6 +53,11 @@ try {
       }
       console.log(`skip ${name}`);
       continue;
+    }
+    const destructive = destructiveOperations(source);
+    if (destructive.length && !allowed.has(name)) {
+      const critical = await operationsWithData(client, destructive);
+      if (critical.length) throw new Error(blockedMigrationMessage(name, critical));
     }
     try {
       await client.query("BEGIN");

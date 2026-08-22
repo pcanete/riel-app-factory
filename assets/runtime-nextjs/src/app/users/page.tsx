@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createUserAction } from "@/app/users/actions";
-import { isLocalPreviewIdentity, isPendingIdentity, listManagedUsers } from "@/features/users/store";
+import { Pagination } from "@/components/pagination";
+import { countManagedUsers, isLocalPreviewIdentity, isPendingIdentity, listManagedUsers, userSummary } from "@/features/users/store";
 import { requireUserManagementAccess } from "@/lib/auth";
 import { runtimeSpec } from "@/lib/spec";
 
@@ -15,15 +16,18 @@ const errorMessages: Record<string, string> = {
 export default async function UsersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; error?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; error?: string; page?: string }>;
 }) {
   await requireUserManagementAccess();
   const requested = await searchParams;
   const query = requested.q?.trim().slice(0, 120) || undefined;
   const active = requested.status === "active" ? true : requested.status === "inactive" ? false : undefined;
-  const [users, allUsers] = await Promise.all([listManagedUsers({ query, active }), listManagedUsers()]);
-  const activeCount = allUsers.filter((user) => user.active).length;
-  const pendingCount = allUsers.filter((user) => isPendingIdentity(user.authSubject)).length;
+  const pageSize = 50;
+  const [summary, total] = await Promise.all([userSummary(), countManagedUsers({ query, active })]);
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  const requestedPage = Number(requested.page ?? "1");
+  const page = Number.isInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, pages) : 1;
+  const users = await listManagedUsers({ query, active, limit: pageSize, offset: (page - 1) * pageSize });
 
   return (
     <>
@@ -36,9 +40,9 @@ export default async function UsersPage({
       </div>
       {requested.error && errorMessages[requested.error] && <div className="notice import-error">{errorMessages[requested.error]}</div>}
       <div className="user-stats">
-        <article className="card"><div className="card-label">Usuarios</div><div className="metric">{allUsers.length}</div></article>
-        <article className="card"><div className="card-label">Activos</div><div className="metric">{activeCount}</div></article>
-        <article className="card"><div className="card-label">Pendientes de vincular</div><div className="metric">{pendingCount}</div></article>
+        <article className="card"><div className="card-label">Usuarios</div><div className="metric">{summary.total}</div></article>
+        <article className="card"><div className="card-label">Activos</div><div className="metric">{summary.active}</div></article>
+        <article className="card"><div className="card-label">Pendientes de vincular</div><div className="metric">{summary.pending}</div></article>
       </div>
       <div className="user-layout">
         <section className="form-card user-create-card">
@@ -83,20 +87,20 @@ export default async function UsersPage({
         </select>
         <button className="button secondary" type="submit">Filtrar</button>
       </form>
-      <div className="table-wrap">
+    <div className="table-wrap mobile-card-wrap">
         {users.length ? (
-          <table className="users-table">
+          <table className="users-table mobile-cards">
             <thead><tr><th>Usuario</th><th>Rol</th><th>Identidad</th><th>Estado</th><th /></tr></thead>
             <tbody>
               {users.map((user) => {
                 const identity = isLocalPreviewIdentity(user.authSubject) ? "Local" : isPendingIdentity(user.authSubject) ? "Pendiente" : "Vinculada";
                 return (
                   <tr key={user.id}>
-                    <td><strong>{user.displayName}</strong><div className="table-secondary">{user.email}</div></td>
-                    <td>{user.roleLabel}</td>
-                    <td><span className={`identity-badge ${identity.toLowerCase()}`}>{identity}</span></td>
-                    <td><span className={`user-status ${user.active ? "on" : "off"}`}>{user.active ? "Activo" : "Inactivo"}</span></td>
-                    <td><Link className="record-link" href={`/users/${user.id}`}>Administrar</Link></td>
+                    <td data-label="Usuario"><strong>{user.displayName}</strong><div className="table-secondary">{user.email}</div></td>
+                    <td data-label="Rol">{user.roleLabel}</td>
+                    <td data-label="Identidad"><span className={`identity-badge ${identity.toLowerCase()}`}>{identity}</span></td>
+                    <td data-label="Estado"><span className={`user-status ${user.active ? "on" : "off"}`}>{user.active ? "Activo" : "Inactivo"}</span></td>
+                    <td data-label="Acción"><Link className="record-link" href={`/users/${user.id}`}>Administrar</Link></td>
                   </tr>
                 );
               })}
@@ -104,6 +108,7 @@ export default async function UsersPage({
           </table>
         ) : <div className="empty">No hay usuarios que coincidan con el filtro.</div>}
       </div>
+      {total > pageSize && <Pagination baseHref="/users" page={page} pageSize={pageSize} query={requested} total={total} />}
     </>
   );
 }

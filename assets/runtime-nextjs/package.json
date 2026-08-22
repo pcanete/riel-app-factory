@@ -12,6 +12,7 @@
     "auth:bootstrap": "node --env-file-if-exists=.env.local scripts/bootstrap-admin.mjs",
     "mcp:agent:create": "node --env-file-if-exists=.env.local scripts/create-agent-token.mjs",
     "mcp:smoke:write": "node --env-file-if-exists=.env.local scripts/smoke-mcp-write.mjs",
+    "test:destructive-guard": "node scripts/test-destructive-guard.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

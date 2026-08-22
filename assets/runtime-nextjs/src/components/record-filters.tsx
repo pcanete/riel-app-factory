@@ -3,6 +3,9 @@ import type { ListRecordOptions } from "@/lib/repository";
 import type { EntitySpec, FieldSpec } from "@/lib/spec";
 
 function FilterControl({ field, value }: { field: FieldSpec; value: string }) {
+  if (field.type === "tags") {
+    return <input className="control" defaultValue={value} name={`f_${field.key}`} placeholder="Etiqueta1, etiqueta2" type="text" />;
+  }
   if (field.type === "enum") {
     return (
       <select className="control" defaultValue={value} name={`f_${field.key}`}>

@@ -16,9 +16,9 @@ export function RecordTable({
   locale?: string;
 }) {
   return (
-    <div className="table-wrap">
+    <div className="table-wrap mobile-card-wrap">
       {records.length ? (
-        <table>
+        <table className="mobile-cards">
           <thead>
             <tr>
               {fields.map((field) => <th key={field.key}>{field.label}</th>)}
@@ -29,7 +29,7 @@ export function RecordTable({
             {records.map((record) => (
               <tr key={String(record.id)}>
                 {fields.map((field) => (
-                  <td key={field.key}>
+                  <td data-label={field.label} key={field.key}>
                     {field.key === entity.title_field && canRead ? (
                       <Link className="record-link" href={`/records/${entity.key}/${record.id}`}>
                         {formatFieldValue(field, record[field.key], locale)}
@@ -37,7 +37,7 @@ export function RecordTable({
                     ) : formatFieldValue(field, record[field.key], locale)}
                   </td>
                 ))}
-                <td>{formatValue(record.updated_at, locale)}</td>
+                <td data-label="Actualizado">{formatValue(record.updated_at, locale)}</td>
               </tr>
             ))}
           </tbody>

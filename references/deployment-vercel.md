@@ -30,6 +30,8 @@ Confirm the Vercel project actually reports an active Git repository link. A suc
 
 The generated migration runner normalizes CRLF/LF line endings before calculating checksums. This keeps the immutable-migration guard strict while preventing Windows, Git, or deployment transport from reporting a false modification of identical SQL.
 
+El runner también inspecciona operaciones destructivas antes de ejecutarlas. Si una tabla tiene filas o una columna contiene valores, el build se detiene. `ALLOW_DESTRUCTIVE_MIGRATIONS` admite únicamente nombres exactos separados por coma y debe usarse como autorización temporal, después de probar respaldo y restauración; no debe quedar configurada permanentemente en Vercel.
+
 ## 3. Configure environment variables
 
 Keep values scoped to the smallest required Vercel environments.

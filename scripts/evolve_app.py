@@ -86,6 +86,25 @@ def compile_enum_constraint(entity_key: str, field_spec: dict[str, Any]) -> str:
     )
 
 
+def compile_tags_constraints(entity_key: str, field_spec: dict[str, Any]) -> list[str]:
+    column = sql_identifier(field_spec["key"])
+    statements: list[str] = []
+    if field_spec.get("required"):
+        constraint = database_object_name("ck", entity_key, field_spec["key"], "required")
+        statements.append(
+            f"ALTER TABLE {sql_identifier(entity_key)} ADD CONSTRAINT {sql_identifier(constraint)} "
+            f"CHECK (cardinality({column}) > 0);"
+        )
+    if field_spec.get("options"):
+        constraint = database_object_name("ck", entity_key, field_spec["key"], "options")
+        values = ", ".join(sql_string(option["key"]) for option in field_spec["options"])
+        statements.append(
+            f"ALTER TABLE {sql_identifier(entity_key)} ADD CONSTRAINT {sql_identifier(constraint)} "
+            f"CHECK ({column} <@ ARRAY[{values}]::text[]);"
+        )
+    return statements
+
+
 def compile_new_entity_table(entity: dict[str, Any]) -> list[str]:
     columns = [
         "  id uuid PRIMARY KEY DEFAULT gen_random_uuid()",
@@ -102,6 +121,15 @@ def compile_new_entity_table(entity: dict[str, Any]) -> list[str]:
                 f"  CONSTRAINT {sql_identifier(constraint)} "
                 f"CHECK ({sql_identifier(field_spec['key'])} IN ({values}))"
             )
+        if field_spec["type"] == "tags":
+            column = sql_identifier(field_spec["key"])
+            if field_spec.get("required"):
+                constraint = database_object_name("ck", entity["key"], field_spec["key"], "required")
+                constraints.append(f"  CONSTRAINT {sql_identifier(constraint)} CHECK (cardinality({column}) > 0)")
+            if field_spec.get("options"):
+                constraint = database_object_name("ck", entity["key"], field_spec["key"], "options")
+                values = ", ".join(sql_string(option["key"]) for option in field_spec["options"])
+                constraints.append(f"  CONSTRAINT {sql_identifier(constraint)} CHECK ({column} <@ ARRAY[{values}]::text[])")
     for relationship in entity.get("relationships", []):
         if relationship["type"] != "belongs_to":
             continue
@@ -147,11 +175,13 @@ def compile_relationship(entity_key: str, relationship: dict[str, Any], *, add_c
     return statements
 
 
-def compile_search_index(entity_key: str, field_key: str) -> str:
+def compile_search_index(entity_key: str, field_spec: dict[str, Any]) -> str:
+    field_key = field_spec["key"]
     index_name = database_object_name("ix", entity_key, field_key)
+    method = " USING GIN" if field_spec["type"] == "tags" else ""
     return (
         f"CREATE INDEX {sql_identifier(index_name)} ON {sql_identifier(entity_key)} "
-        f"({sql_identifier(field_key)});"
+        f"{method} ({sql_identifier(field_key)});"
     )
 
 
@@ -237,11 +267,23 @@ def plan_field_change(
         elif old_field.get("options") != new_field.get("options"):
             plan.changes.append(f"Enum option labels updated: {path}")
 
+    if old_field["type"] == "tags" and old_field.get("options") != new_field.get("options"):
+        old_options = set(enum_keys(old_field))
+        new_options = set(enum_keys(new_field))
+        if old_options and (not new_options or old_options - new_options):
+            plan.blocked.append(f"Removing tag options requires a reviewed data migration: {path}")
+        else:
+            if old_options:
+                constraint = database_object_name("ck", entity_key, field_key, "options")
+                plan.sql.append(f"ALTER TABLE {sql_identifier(entity_key)} DROP CONSTRAINT {sql_identifier(constraint)};")
+            plan.sql.extend(compile_tags_constraints(entity_key, {**new_field, "required": False}))
+            plan.changes.append(f"Tag options expanded or added: {path}")
+
     old_searchable = old_field.get("searchable", False)
     new_searchable = new_field.get("searchable", False)
     if old_searchable != new_searchable:
         if new_searchable:
-            plan.sql.append(compile_search_index(entity_key, field_key))
+            plan.sql.append(compile_search_index(entity_key, new_field))
             plan.changes.append(f"Search index added: {path}")
         else:
             plan.warnings.append(f"Search index retained although the field is no longer searchable: {path}")
@@ -312,8 +354,10 @@ def plan_existing_entity(
         )
         if field_spec["type"] == "enum":
             plan.sql.append(compile_enum_constraint(entity_key, field_spec))
+        if field_spec["type"] == "tags":
+            plan.sql.extend(compile_tags_constraints(entity_key, field_spec))
         if field_spec.get("searchable"):
-            plan.sql.append(compile_search_index(entity_key, field_key))
+            plan.sql.append(compile_search_index(entity_key, field_spec))
         plan.changes.append(f"Field added: {path}")
     for field_key in sorted(old_fields.keys() & new_fields.keys()):
         if old_fields[field_key] != new_fields[field_key]:
@@ -416,7 +460,7 @@ def plan_evolution(old_spec: dict[str, Any], new_spec: dict[str, Any]) -> Evolut
                 plan.sql.extend(compile_relationship(entity_key, relationship, add_column=False))
         for field_spec in entity["fields"]:
             if field_spec.get("searchable"):
-                plan.sql.append(compile_search_index(entity_key, field_spec["key"]))
+                plan.sql.append(compile_search_index(entity_key, field_spec))
 
     plan_keyed_runtime_changes(plan, "View", old_spec["views"], new_spec["views"])
     plan_keyed_runtime_changes(plan, "Rule", old_spec.get("rules", []), new_spec.get("rules", []))
@@ -447,9 +491,7 @@ def compile_migration(plan: EvolutionPlan) -> str:
         "-- GENERATED BY APP FACTORY EVOLUTION. DO NOT EDIT AFTER DEPLOYMENT.",
         f"-- Previous AppSpec: {plan.old_fingerprint}",
         f"-- New AppSpec: {plan.new_fingerprint}",
-        "BEGIN;",
         *plan.sql,
-        "COMMIT;",
         "",
     ]
     return "\n".join(lines)

@@ -30,7 +30,7 @@ const scopes = [
   "schema:read",
   "records:read",
   ...(access === "write" || access === "full" ? ["records:write"] : []),
-  ...(access === "full" ? ["records:delete"] : []),
+  ...(access === "full" ? ["records:delete", "settings:read", "settings:write"] : []),
 ];
 
 const token = `factory_mcp_${randomBytes(32).toString("base64url")}`;

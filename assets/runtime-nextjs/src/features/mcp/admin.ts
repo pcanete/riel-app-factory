@@ -99,7 +99,12 @@ export async function listManagedAgents() {
   );
 }
 
-export async function listAgentEvents(limit = 200) {
+export async function countAgentEvents() {
+  const rows = await sql<{ total: number }>("SELECT count(*)::int AS total FROM app_agent_event");
+  return rows[0]?.total ?? 0;
+}
+
+export async function listAgentEvents({ limit = 25, offset = 0 } = {}) {
   return sql<AgentEvent>(
     `SELECT event.id,
             agent.name AS agent_name,
@@ -114,7 +119,7 @@ export async function listAgentEvents(limit = 200) {
        FROM app_agent_event AS event
        JOIN app_agent AS agent ON agent.id = event.agent_id
       ORDER BY event.started_at DESC
-      LIMIT $1`,
-    [Math.min(500, Math.max(1, limit))],
+      LIMIT $1 OFFSET $2`,
+    [Math.min(200, Math.max(1, limit)), Math.max(0, offset)],
   );
 }

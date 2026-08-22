@@ -42,6 +42,17 @@
             {"key": "maintenance", "label": "En mantenimiento"},
             {"key": "retired", "label": "Fuera de servicio"}
           ]
+        },
+        {
+          "key": "labels",
+          "label": "Etiquetas",
+          "type": "tags",
+          "searchable": true,
+          "options": [
+            {"key": "critical", "label": "Crítico"},
+            {"key": "warranty", "label": "En garantía"},
+            {"key": "external", "label": "Servicio externo"}
+          ]
         }
       ],
       "relationships": [
@@ -116,7 +127,7 @@
     }
   ],
   "views": [
-    {"key": "equipment_list", "label": "Equipos", "type": "table", "entity": "equipment", "navigation": true, "fields": ["name", "serial_number", "status"], "default_sort": {"field": "name", "direction": "asc"}, "bulk_edit_fields": ["status"]},
+    {"key": "equipment_list", "label": "Equipos", "type": "table", "entity": "equipment", "navigation": true, "fields": ["name", "serial_number", "status", "labels"], "default_sort": {"field": "name", "direction": "asc"}, "bulk_edit_fields": ["status"]},
     {"key": "work_order_board", "label": "Órdenes", "type": "kanban", "entity": "work_order", "navigation": true, "fields": ["summary", "scheduled_for"], "group_by": "status", "allow_move": true},
     {"key": "schedule", "label": "Agenda", "type": "calendar", "entity": "work_order", "navigation": true, "fields": ["summary", "status"], "date_field": "scheduled_for", "allow_reschedule": true},
     {

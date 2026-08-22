@@ -55,6 +55,38 @@ class ScaffoldTests(unittest.TestCase):
         errors = validate_spec(spec)
         self.assertTrue(any("default must reference an enum option" in error for error in errors))
 
+    def test_tags_compile_as_arrays_with_gin_and_constraints(self) -> None:
+        spec = copy.deepcopy(self.spec)
+        labels = next(field for field in spec["entities"][0]["fields"] if field["key"] == "labels")
+        labels.update({"required": True, "default": ["critical"]})
+        self.assertEqual(validate_spec(spec), [])
+        sql = compile_sql(spec)
+        self.assertIn('"labels" text[] NOT NULL DEFAULT ARRAY[\'critical\']::text[]', sql)
+        self.assertIn('CHECK (cardinality("labels") > 0)', sql)
+        self.assertIn('"labels" <@ ARRAY[\'critical\', \'warranty\', \'external\']::text[]', sql)
+        self.assertIn('USING GIN ("labels")', sql)
+
+    def test_tags_reject_invalid_default_and_duplicate_options(self) -> None:
+        spec = copy.deepcopy(self.spec)
+        spec["entities"][0]["fields"].append({
+            "key": "keywords", "label": "Etiquetas", "type": "tags",
+            "default": ["missing"],
+            "options": [{"key": "active", "label": "Activa"}, {"key": "active", "label": "Repetida"}],
+        })
+        errors = validate_spec(spec)
+        self.assertTrue(any("Duplicate option 'active'" in error for error in errors))
+        self.assertTrue(any("unknown tag option" in error for error in errors))
+
+        invalid = copy.deepcopy(self.spec)
+        invalid["entities"][0]["fields"].append({
+            "key": "keywords", "label": "Etiquetas libres", "type": "tags", "unique": True,
+            "default": [" Needs trim ", "repeat", "repeat"],
+        })
+        errors = validate_spec(invalid)
+        self.assertTrue(any("unique is not supported" in error for error in errors))
+        self.assertTrue(any("at most 50 distinct tags" in error for error in errors))
+        self.assertTrue(any("lowercase, trimmed" in error for error in errors))
+
     def test_required_relationship_cannot_set_null(self) -> None:
         spec = copy.deepcopy(self.spec)
         spec["entities"][2]["relationships"][0]["on_delete"] = "set_null"

@@ -16,6 +16,9 @@ Build an independent operational data foundation from business language. Treat e
 - Produce ordinary source and PostgreSQL artifacts that remain usable without this skill.
 - Keep the human interface intentionally sufficient for data administration; prioritize safe schema evolution and agent operability over vertical-product polish.
 - Expose agents through authenticated, role-scoped MCP tools with independent read, write, and delete scopes. External agents bring their own models; the factory does not require Riel or an embedded LLM to operate.
+- Treat `tags` as a first-class multi-value field across schema, PostgreSQL arrays/GIN, forms, filters, presentation, imports, exports, MCP, and evolution; never implement only one layer.
+- Keep administrative lists paginated and mobile tables readable as labeled record cards.
+- Fail closed before a deployment applies destructive SQL to live data. Authorization must identify one migration and follow tested backup/restore, never a permanent global bypass.
 - Do not introduce multi-tenancy, billing, a visual builder, a plugin marketplace, or a proprietary runtime unless the user asks.
 - Do not claim production readiness while a generated project still has unresolved security, authentication, authorization, migration, backup, or observability gates.
 

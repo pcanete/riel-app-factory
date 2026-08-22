@@ -59,6 +59,7 @@ It does not overwrite `src/features/`, `src/components/custom/`, `database/custo
 - remove or rename an entity, field, or stored relationship;
 - change a field type;
 - remove an enum value;
+- remove allowed options from a `tags` field while existing rows may still use them;
 - make an existing field or relationship required without an explicit backfill;
 - add uniqueness where existing duplicates may exist or remove a unique constraint;
 - change a foreign-key target, type, or delete behavior;
@@ -70,6 +71,7 @@ These operations are not forbidden. They require a custom reviewed migration, da
 ## Migration invariants
 
 - Applied migrations are immutable; evolution always creates the next numbered migration.
+- Generated migrations never open their own transaction; the runner commits their SQL and ledger entry atomically and blocks destructive SQL when live data would be lost.
 - Migration checksums are enforced by the generated runtime.
 - A source rollback does not roll back PostgreSQL.
 - An evolution plan is not evidence that the migration succeeded against real data.

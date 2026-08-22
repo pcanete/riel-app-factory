@@ -24,7 +24,7 @@ export type AgentCreateState = {
 const accessScopes = {
   read: ["schema:read", "records:read"],
   write: ["schema:read", "records:read", "records:write"],
-  full: ["schema:read", "records:read", "records:write", "records:delete"],
+  full: ["schema:read", "records:read", "records:write", "records:delete", "settings:read", "settings:write"],
 } as const;
 
 function isUniqueViolation(error: unknown) {

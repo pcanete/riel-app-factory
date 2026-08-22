@@ -8,24 +8,36 @@ import { runtimeSpec } from "@/lib/spec";
 
 export async function Sidebar() {
   const user = await getCurrentUser();
-  const entityLinks = runtimeSpec.entities.filter((entity) => user && hasPermission(user, entity.key, "list")).map((entity) => ({
-    key: entity.key,
-    label: entity.label_plural,
-    href: `/records/${entity.key}`,
-  }));
+  const entityLinks = runtimeSpec.entities
+    .filter((entity) => user && hasPermission(user, entity.key, "list"))
+    .map((entity) => ({ key: entity.key, label: entity.label_plural, href: `/records/${entity.key}` }));
+  const entityLabels = new Set(entityLinks.map((link) => link.label.toLocaleLowerCase(runtimeSpec.app.locale ?? "es-AR")));
   const viewLinks = runtimeSpec.views
     .filter((view) => view.navigation && ["table", "kanban", "calendar", "dashboard"].includes(view.type))
     .filter((view) => user && hasViewAccess(user, view))
+    .filter((view) => !(view.type === "table" && entityLabels.has(view.label.toLocaleLowerCase(runtimeSpec.app.locale ?? "es-AR"))))
     .map((view) => ({ key: view.key, label: view.label, href: `/views/${view.key}` }));
+  const systemLinks = [
+    ...(user && canManageSettings(user) ? [{ key: "settings", label: "Configuración", href: "/settings" }] : []),
+    ...(user && canManageUsers(user) ? [{ key: "users", label: "Usuarios", href: "/users" }] : []),
+    ...(user && canManageAgents(user) ? [{ key: "agents", label: "Agentes", href: "/agents" }] : []),
+    ...(user && canViewAudit(user) ? [{ key: "audit", label: "Auditoría", href: "/audit" }] : []),
+    ...(user && canViewRules(user) ? [{ key: "rules", label: "Reglas", href: "/rules" }] : []),
+  ];
 
   return (
     <aside className="sidebar">
-      <div className="brand">
-        <div className="brand-name">{runtimeSpec.app.name}</div>
-        <div className="brand-description">{runtimeSpec.app.description}</div>
-      </div>
+      <input aria-label="Mostrar u ocultar la navegación" className="nav-switch" id="nav-switch" type="checkbox" />
+      <label className="nav-toggle" htmlFor="nav-switch">
+        <div className="brand">
+          <div className="brand-name">{runtimeSpec.app.name}</div>
+          <div className="brand-description">{runtimeSpec.app.description}</div>
+        </div>
+        <span aria-hidden="true" className="nav-toggle-icon" />
+      </label>
       <nav className="nav" aria-label="Navegación principal">
         <Link className="nav-link home" href="/">Resumen</Link>
+        {entityLinks.length > 0 && <div className="nav-section">Datos</div>}
         {entityLinks.map((link) => (
           <Link className="nav-link" href={link.href} key={link.key}>{link.label}</Link>
         ))}
@@ -33,11 +45,10 @@ export async function Sidebar() {
         {viewLinks.map((link) => (
           <Link className="nav-link" href={link.href} key={link.key}>{link.label}</Link>
         ))}
-        {user && canManageSettings(user) && <Link className="nav-link" href="/settings">Configuración</Link>}
-        {user && canManageUsers(user) && <Link className="nav-link" href="/users">Usuarios</Link>}
-        {user && canManageAgents(user) && <Link className="nav-link" href="/agents">Agentes</Link>}
-        {user && canViewAudit(user) && <Link className="nav-link audit-link" href="/audit">Auditoría</Link>}
-        {user && canViewRules(user) && <Link className="nav-link" href="/rules">Reglas</Link>}
+        {systemLinks.length > 0 && <div className="nav-section">Sistema</div>}
+        {systemLinks.map((link) => (
+          <Link className="nav-link" href={link.href} key={link.key}>{link.label}</Link>
+        ))}
       </nav>
       <div className="session-panel">
         {user ? (

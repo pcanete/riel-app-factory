@@ -70,9 +70,10 @@ export function isPendingIdentity(authSubject: string) {
   return authSubject.startsWith("pending:");
 }
 
-export async function listManagedUsers(filters: { query?: string; active?: boolean } = {}) {
+type UserFilters = { query?: string; active?: boolean };
+
+function userWhere(filters: UserFilters, values: unknown[]) {
   const conditions: string[] = [];
-  const values: unknown[] = [];
   if (filters.query) {
     values.push(`%${filters.query}%`);
     conditions.push(`(users.display_name ILIKE $${values.length} OR users.email ILIKE $${values.length})`);
@@ -81,12 +82,38 @@ export async function listManagedUsers(filters: { query?: string; active?: boole
     values.push(filters.active);
     conditions.push(`users.active = $${values.length}`);
   }
-  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+  return conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+}
+
+export async function userSummary() {
+  const rows = await sql<{ total: number; active: number; pending: number }>(
+    `SELECT count(*)::int AS total,
+            count(*) FILTER (WHERE active)::int AS active,
+            count(*) FILTER (WHERE auth_subject LIKE 'pending:%')::int AS pending
+       FROM app_user`,
+  );
+  return rows[0] ?? { total: 0, active: 0, pending: 0 };
+}
+
+export async function countManagedUsers(filters: UserFilters = {}) {
+  const values: unknown[] = [];
+  const where = userWhere(filters, values);
+  const rows = await sql<{ total: number }>(`SELECT count(*)::int AS total FROM app_user AS users ${where}`, values);
+  return rows[0]?.total ?? 0;
+}
+
+export async function listManagedUsers(filters: UserFilters & { limit?: number; offset?: number } = {}) {
+  const values: unknown[] = [];
+  const where = userWhere(filters, values);
+  values.push(Math.min(200, Math.max(1, filters.limit ?? 50)));
+  const limit = `$${values.length}`;
+  values.push(Math.max(0, filters.offset ?? 0));
+  const offset = `$${values.length}`;
   const rows = await sql<ManagedUserRow>(
     `${USER_SELECT}
       ${where}
       ORDER BY users.active DESC, users.display_name ASC
-      LIMIT 250`,
+      LIMIT ${limit} OFFSET ${offset}`,
     values,
   );
   return rows.map(mapUser);

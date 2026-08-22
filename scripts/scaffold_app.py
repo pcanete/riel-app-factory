@@ -25,6 +25,7 @@ FIELD_TYPES = {
     "email",
     "url",
     "enum",
+    "tags",
     "file",
     "json",
 }
@@ -106,6 +107,8 @@ def rule_literal_compatible(field: dict[str, Any], value: Any) -> bool:
         return isinstance(value, str) and value in {
             option.get("key") for option in field.get("options", []) if isinstance(option, dict)
         }
+    if field_type == "tags":
+        return isinstance(value, list) and all(isinstance(item, str) for item in value)
     if field_type in {"text", "long_text", "date", "datetime", "email", "url", "relationship"}:
         return isinstance(value, str)
     return True
@@ -202,7 +205,7 @@ def validate_rule_condition(
             validate_rule_value(condition["value"], f"{path}.value", field, fields, errors)
         if operator in {"gt", "gte", "lt", "lte"} and rule_type_group(field) not in {"number", "temporal"}:
             errors.append(f"{path}.operator '{operator}' requires a numeric or temporal field.")
-        if operator == "contains" and field.get("type") not in {"text", "long_text", "email", "url", "json"}:
+        if operator == "contains" and field.get("type") not in {"text", "long_text", "email", "url", "json", "tags"}:
             errors.append(f"{path}.operator 'contains' is not supported for field type '{field.get('type')}'.")
     else:
         errors.append(f"{path}.operator is invalid.")
@@ -309,11 +312,13 @@ def validate_spec(spec: Any) -> list[str]:
             field_type = field.get("type")
             if field_type not in FIELD_TYPES:
                 errors.append(f"{field_path}.type is not supported in AppSpec v0.")
-            if field_type == "enum":
+            if field_type in {"enum", "tags"}:
                 options = field.get("options")
-                if not isinstance(options, list) or not options:
+                if field_type == "enum" and (not isinstance(options, list) or not options):
                     errors.append(f"{field_path}.options must be non-empty for enum fields.")
-                else:
+                elif options is not None and (not isinstance(options, list) or not options):
+                    errors.append(f"{field_path}.options must be a non-empty array when declared.")
+                elif isinstance(options, list):
                     option_keys: list[str] = []
                     for option_index, option in enumerate(options):
                         option_path = f"{field_path}.options[{option_index}]"
@@ -324,9 +329,30 @@ def validate_spec(spec: Any) -> list[str]:
                         if not isinstance(option, dict) or not required_string(option.get("label")):
                             errors.append(f"{option_path}.label must be a non-empty string.")
                     for key in duplicates(option_keys):
-                        errors.append(f"Duplicate enum option '{key}' at {field_path}.")
-                    if "default" in field and field["default"] not in option_keys:
+                        errors.append(f"Duplicate option '{key}' at {field_path}.")
+                    if field_type == "enum" and "default" in field and field["default"] not in option_keys:
                         errors.append(f"{field_path}.default must reference an enum option key.")
+                    if field_type == "tags" and "default" in field:
+                        default = field["default"]
+                        if not isinstance(default, list) or not all(isinstance(item, str) for item in default):
+                            errors.append(f"{field_path}.default must be an array of tag keys.")
+                        elif any(item not in option_keys for item in default):
+                            errors.append(f"{field_path}.default contains an unknown tag option.")
+                elif field_type == "tags" and "default" in field:
+                    default = field["default"]
+                    if not isinstance(default, list) or not all(isinstance(item, str) for item in default):
+                        errors.append(f"{field_path}.default must be an array of strings.")
+                if field_type == "tags" and field.get("required") and "default" in field and not field.get("default"):
+                    errors.append(f"{field_path}.default must contain at least one tag when the field is required.")
+                if field_type == "tags" and field.get("unique"):
+                    errors.append(f"{field_path}.unique is not supported for multi-value tags.")
+                if field_type == "tags" and isinstance(field.get("default"), list) and all(isinstance(tag, str) for tag in field["default"]):
+                    default_tags = field["default"]
+                    if len(default_tags) > 50 or len(default_tags) != len(set(default_tags)):
+                        errors.append(f"{field_path}.default must contain at most 50 distinct tags.")
+                    for tag in default_tags:
+                        if isinstance(tag, str) and (not tag or len(tag) > 48 or tag != tag.strip().lower()):
+                            errors.append(f"{field_path}.default tags must be lowercase, trimmed, and at most 48 characters.")
         for key in duplicates(field_keys):
             errors.append(f"Duplicate field key '{key}' in entity '{entity_key}'.")
         field_key_set = set(field_keys)
@@ -697,6 +723,8 @@ def sql_string(value: str) -> str:
 
 
 def sql_default(field: dict[str, Any]) -> str | None:
+    if field["type"] == "tags" and "default" not in field:
+        return "ARRAY[]::text[]"
     if "default" not in field:
         return None
     value = field["default"]
@@ -709,6 +737,8 @@ def sql_default(field: dict[str, Any]) -> str | None:
         return str(value)
     if field_type in {"file", "json"}:
         return f"{sql_string(json.dumps(value, ensure_ascii=False))}::jsonb"
+    if field_type == "tags" and isinstance(value, list) and all(isinstance(item, str) for item in value):
+        return "ARRAY[" + ", ".join(sql_string(item) for item in value) + "]::text[]"
     if isinstance(value, str):
         return sql_string(value)
     raise SpecError(f"Unsupported default for field {field['key']!r}.")
@@ -726,6 +756,7 @@ def sql_type(field: dict[str, Any]) -> str:
         "email": "text",
         "url": "text",
         "enum": "text",
+        "tags": "text[]",
         "file": "jsonb",
         "json": "jsonb",
     }[field["type"]]
@@ -842,6 +873,19 @@ def compile_sql(spec: dict[str, Any]) -> str:
                     f"  CONSTRAINT {sql_identifier(database_object_name('ck', entity['key'], field['key']))} "
                     f"CHECK ({sql_identifier(field['key'])} IN ({values}))"
                 )
+            if field["type"] == "tags":
+                column = sql_identifier(field["key"])
+                if field.get("required"):
+                    constraints.append(
+                        f"  CONSTRAINT {sql_identifier(database_object_name('ck', entity['key'], field['key'], 'required'))} "
+                        f"CHECK (cardinality({column}) > 0)"
+                    )
+                if field.get("options"):
+                    values = ", ".join(sql_string(option["key"]) for option in field["options"])
+                    constraints.append(
+                        f"  CONSTRAINT {sql_identifier(database_object_name('ck', entity['key'], field['key'], 'options'))} "
+                        f"CHECK ({column} <@ ARRAY[{values}]::text[])"
+                    )
         for relationship in entity.get("relationships", []):
             if relationship["type"] != "belongs_to":
                 continue
@@ -886,10 +930,11 @@ def compile_sql(spec: dict[str, Any]) -> str:
         for field in entity["fields"]:
             if field.get("searchable"):
                 index_name = database_object_name("ix", entity["key"], field["key"])
+                method = " USING GIN" if field["type"] == "tags" else ""
                 lines.extend(
                     [
                         f"CREATE INDEX {sql_identifier(index_name)}",
-                        f"  ON {sql_identifier(entity['key'])} ({sql_identifier(field['key'])});",
+                        f"  ON {sql_identifier(entity['key'])}{method} ({sql_identifier(field['key'])});",
                         "",
                     ]
                 )
