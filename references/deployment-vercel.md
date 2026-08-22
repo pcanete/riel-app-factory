@@ -21,6 +21,13 @@ Create one Vercel project, one Neon database, one Clerk application, and one cre
 
 Connect the GitHub repository to Vercel and set the framework to Next.js. Preserve the generated `vercel-build` command: in production it applies idempotent migrations, bootstraps the pending administrator when configured, and then executes `next build`. Preview builds do not mutate the production database.
 
+Confirm the Vercel project actually reports an active Git repository link. A successful push is only source backup when that link is absent; it does not create a deployment. For an intentional CLI fallback:
+
+- add `.vercel/` to `.gitignore` before linking locally;
+- link the exact organization and project, then verify both identifiers in `.vercel/project.json` without committing that directory;
+- run the production deployment from a clean, committed tree;
+- record the resulting deployment ID and confirm that the stable alias points to it.
+
 The generated migration runner normalizes CRLF/LF line endings before calculating checksums. This keeps the immutable-migration guard strict while preventing Windows, Git, or deployment transport from reporting a false modification of identical SQL.
 
 ## 3. Configure environment variables
@@ -41,6 +48,10 @@ Keep values scoped to the smallest required Vercel environments.
 Never configure `ALLOW_UNSAFE_LOCAL_PREVIEW=true` in Vercel. Production ignores it, but its presence creates misleading operational state.
 
 `app_setting` is not a secret manager. Keep any client-feature token or password in Vercel environment variables or an approved external secret store.
+
+Use a Clerk production instance and its live key pair before calling an environment production-ready. Clerk development keys are acceptable for a temporary Hobby evaluation, but they have strict limits and keep the deployment in test status even when authentication itself works.
+
+Keep the PostgreSQL TLS mode explicit. If the connection parser warns that `sslmode=require` will change semantics in a future major release, plan and test a controlled move to `sslmode=verify-full` to preserve certificate verification; do not silently rewrite a production connection string during an unrelated deployment.
 
 ## 4. Close identity before opening access
 
@@ -84,6 +95,7 @@ Do not declare the deployment production-ready when any of these remain unresolv
 - the default branch does not contain the deployed source;
 - a secret or customer record is present in Git history;
 - authentication permits public sign-up unintentionally;
+- a supposedly production environment still uses Clerk development keys;
 - server-side permissions or the first-admin link have not been tested;
 - MCP accepts an unauthenticated request, an unapproved host, or an agent cannot be attributed by token and role;
 - migrations are destructive or have no recovery plan;
