@@ -37,13 +37,10 @@ Keep values scoped to the smallest required Vercel environments.
 | `CLERK_SECRET_KEY` | Production, sensitive | Server-side Clerk operations |
 | `BOOTSTRAP_ADMIN_EMAIL` | Production | Email for the first pending administrator |
 | `BOOTSTRAP_ADMIN_NAME` | Production | Optional display name for that administrator |
-| `SETTINGS_ENCRYPTION_KEY` | Production, sensitive | Unique 32-byte key for encrypted personal connections |
-| `OPENAI_API_KEY` or `AI_GATEWAY_API_KEY` | Optional, sensitive | Shared AI access when users do not provide personal keys |
-| `AI_ALLOWED_MODELS` | Optional | Comma-separated model allowlist |
 
 Never configure `ALLOW_UNSAFE_LOCAL_PREVIEW=true` in Vercel. Production ignores it, but its presence creates misleading operational state.
 
-Generate `SETTINGS_ENCRYPTION_KEY` from a cryptographically secure random source. Save a recoverable copy in the client's approved secret manager before users store provider keys. Do not rotate it without a data re-encryption plan.
+`app_setting` is not a secret manager. Keep any client-feature token or password in Vercel environment variables or an approved external secret store.
 
 ## 4. Close identity before opening access
 
@@ -65,10 +62,9 @@ A green build is necessary but insufficient. Verify all of the following against
 4. The invited administrator can sign in and reaches the application with the expected role.
 5. One representative create, read, update, and delete flow enforces permissions and writes audit events.
 6. `/users` can invite or stage a user without allowing self-deactivation or unauthorized role changes.
-7. `/settings` stores a personal provider key without rendering it back to the browser.
-8. When AI is enabled, one conversation succeeds with the intended personal or shared credential.
-9. Create a distinct expiring MCP agent, connect with its one-time token, call `list_entities`, then run a representative idempotent create/update/delete cycle first against a disposable database and finally against production; confirm tool events and linked mutation audits at `/agents` and `/audit`.
-10. Runtime logs contain no unhandled error for the verified flow.
+7. `/settings` can save and delete a representative non-secret JSON option, and its audit events are visible.
+8. Create a distinct expiring MCP agent, connect with its one-time token, call `list_entities`, then run a representative idempotent create/update/delete cycle first against a disposable database and finally against production; confirm tool events and linked mutation audits at `/agents` and `/audit`.
+9. Runtime logs contain no unhandled error for the verified flow.
 
 Record the source commit, production deployment URL, migration result, and verification date in the delivery handoff.
 
@@ -78,7 +74,6 @@ Record the source commit, production deployment URL, migration result, and verif
 - Configure Neon backups or point-in-time recovery appropriate to the client's data and test restoration before claiming recoverability.
 - Export or document Clerk configuration and recovery ownership.
 - Keep deployment environment variables inventoried without copying their secret values into GitHub.
-- Back up `SETTINGS_ENCRYPTION_KEY` separately. If it is lost, encrypted user credentials cannot be recovered and each user must reconnect them.
 
 If Vercel disappears, the committed Next.js application can run on another Node-compatible host. If the factory disappears, every generated application still contains its ordinary source, migrations, AppSpec, and runtime documentation.
 
@@ -92,5 +87,5 @@ Do not declare the deployment production-ready when any of these remain unresolv
 - server-side permissions or the first-admin link have not been tested;
 - MCP accepts an unauthenticated request, an unapproved host, or an agent cannot be attributed by token and role;
 - migrations are destructive or have no recovery plan;
-- database or encryption-key recovery ownership is unknown;
+- database recovery ownership is unknown;
 - health, logs, and an authenticated browser flow have not been checked.

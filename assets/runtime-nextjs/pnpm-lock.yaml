@@ -11,24 +11,12 @@ importers:
 
   .:
     dependencies:
-      '@ai-sdk/anthropic':
-        specifier: ^4.0.40
-        version: 4.0.40(zod@4.4.3)
-      '@ai-sdk/openai':
-        specifier: ^4.0.44
-        version: 4.0.44(zod@4.4.3)
-      '@ai-sdk/react':
-        specifier: ^4.0.73
-        version: 4.0.73(react@19.2.8)(zod@4.4.3)
       '@clerk/nextjs':
         specifier: ^7.7.9
         version: 7.7.9(next@16.3.1(@types/node@24.13.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@modelcontextprotocol/server':
         specifier: ^2.0.0
         version: 2.0.0
-      ai:
-        specifier: ^7.0.70
-        version: 7.0.70(zod@4.4.3)
       exceljs:
         specifier: ^4.4.0
         version: 4.4.0
@@ -68,46 +56,6 @@ importers:
         version: 5.9.3
 
 packages:
-
-  '@ai-sdk/anthropic@4.0.40':
-    resolution: {integrity: sha512-cFlCZspCUC1LGDipARsKx3+4A8c9qI+vFuG0/04Phs0deKwifNsl8wDmcU2HO31aiNR9AJgEBcvg5S00zUS70g==}
-    engines: {node: '>=22'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
-
-  '@ai-sdk/gateway@4.0.56':
-    resolution: {integrity: sha512-fc7tq+v7WrzCV+aXegbq/EOs68tFDJYLEwnCOnVYcB/Y5ZTjUIHzyJlrqdoJUlMTkc/qmKsXb1ovVvdUYPmxIA==}
-    engines: {node: '>=22'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
-
-  '@ai-sdk/mcp@2.0.34':
-    resolution: {integrity: sha512-JejeZFNplIAQpxI7F6FmE8y68kzcryJ+shmJl3hoj9DO/+ds7G/tIfGJvDEwzKhCZTZlWq5ra+MPrThx02YsGA==}
-    engines: {node: '>=22'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
-
-  '@ai-sdk/openai@4.0.44':
-    resolution: {integrity: sha512-x3XjhKu5r7DKELWwE5WzCAKePkAqZXlgvat4eIiSm37MaQHk+n3qeJxmVcfqJWlQ2kkAld8+f7G3E3yjG+4ShQ==}
-    engines: {node: '>=22'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
-
-  '@ai-sdk/provider-utils@5.0.28':
-    resolution: {integrity: sha512-TnHUyd/rCYQqHg5RuiOaz/hUql6U+kbUaBW0Rp+0N5UhnAInA9CzzV0HXvuAAPwppDsK6fAx9Rd+tRawpJ/3pg==}
-    engines: {node: '>=22'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
-
-  '@ai-sdk/provider@4.0.7':
-    resolution: {integrity: sha512-6or44XprPzKbr8zkmzosowSE0pxkvJcoojBL+mCZvPUt3kvXp3XSNqeVun9golb1acEfSo6yaEBRT18h2VU+1Q==}
-    engines: {node: '>=22'}
-
-  '@ai-sdk/react@4.0.73':
-    resolution: {integrity: sha512-bRCVjf9bQSwoHRwJI+NGzl8c2FQhax2cR4jcUtfqjurZpo5cBQfWetHaKaQjv39Y+bWoTBiu1LU+tP0kIx4new==}
-    engines: {node: '>=22'}
-    peerDependencies:
-      react: ^18 || ~19.0.1 || ~19.1.2 || ^19.2.1
 
   '@clerk/backend@3.16.9':
     resolution: {integrity: sha512-x+kyjPTAMNEJIVuRMEXRSZUJPnB2PAoljSQ5gh/O/nVmRPIF1fU+tMQYEHKiCg3Ab/JUSywOsgamoEufyJj8dA==}
@@ -413,12 +361,6 @@ packages:
 
   '@workflow/serde@4.1.0':
     resolution: {integrity: sha512-pav4F2BoirECWR7Nf1TKt+2eETcBj7jj4cBefQ8VXQCA6NPkaKeLfj/zMgi+3zYV5ZIBT4GuUiphsj0/b9hPQQ==}
-
-  ai@7.0.70:
-    resolution: {integrity: sha512-r7Y0alVQqairf0WvT3puyjz5wPMjRV5zYSHiGz87K3uoqkCeK1EaN6O8lLqduSszLcfqC6XVJAIdy3/RkPwPHg==}
-    engines: {node: '>=22'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
 
   archiver-utils@2.1.0:
     resolution: {integrity: sha512-bEL/yUb/fNNiNTuUz979Z0Yg5L+LzLxGJz8x79lYmR54fmTIb6ob/hNQgkQnIUDWIFjZVQwl9Xs356I6BAMHfw==}
@@ -944,57 +886,6 @@ packages:
 
 snapshots:
 
-  '@ai-sdk/anthropic@4.0.40(zod@4.4.3)':
-    dependencies:
-      '@ai-sdk/provider': 4.0.7
-      '@ai-sdk/provider-utils': 5.0.28(zod@4.4.3)
-      zod: 4.4.3
-
-  '@ai-sdk/gateway@4.0.56(zod@4.4.3)':
-    dependencies:
-      '@ai-sdk/provider': 4.0.7
-      '@ai-sdk/provider-utils': 5.0.28(zod@4.4.3)
-      '@vercel/oidc': 3.2.0
-      zod: 4.4.3
-
-  '@ai-sdk/mcp@2.0.34(zod@4.4.3)':
-    dependencies:
-      '@ai-sdk/provider': 4.0.7
-      '@ai-sdk/provider-utils': 5.0.28(zod@4.4.3)
-      pkce-challenge: 5.0.1
-      zod: 4.4.3
-
-  '@ai-sdk/openai@4.0.44(zod@4.4.3)':
-    dependencies:
-      '@ai-sdk/provider': 4.0.7
-      '@ai-sdk/provider-utils': 5.0.28(zod@4.4.3)
-      zod: 4.4.3
-
-  '@ai-sdk/provider-utils@5.0.28(zod@4.4.3)':
-    dependencies:
-      '@ai-sdk/provider': 4.0.7
-      '@standard-schema/spec': 1.1.0
-      '@workflow/serde': 4.1.0
-      eventsource-parser: 3.1.1
-      undici: 7.29.0
-      zod: 4.4.3
-
-  '@ai-sdk/provider@4.0.7':
-    dependencies:
-      json-schema: 0.4.0
-
-  '@ai-sdk/react@4.0.73(react@19.2.8)(zod@4.4.3)':
-    dependencies:
-      '@ai-sdk/mcp': 2.0.34(zod@4.4.3)
-      '@ai-sdk/provider': 4.0.7
-      '@ai-sdk/provider-utils': 5.0.28(zod@4.4.3)
-      ai: 7.0.70(zod@4.4.3)
-      react: 19.2.8
-      swr: 2.5.1(react@19.2.8)
-      throttleit: 2.1.0
-    transitivePeerDependencies:
-      - zod
-
   '@clerk/backend@3.16.9(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
     dependencies:
       '@clerk/shared': 4.29.2(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -1241,13 +1132,6 @@ snapshots:
   '@vercel/oidc@3.2.0': {}
 
   '@workflow/serde@4.1.0': {}
-
-  ai@7.0.70(zod@4.4.3):
-    dependencies:
-      '@ai-sdk/gateway': 4.0.56(zod@4.4.3)
-      '@ai-sdk/provider': 4.0.7
-      '@ai-sdk/provider-utils': 5.0.28(zod@4.4.3)
-      zod: 4.4.3
 
   archiver-utils@2.1.0:
     dependencies:

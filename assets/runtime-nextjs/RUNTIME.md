@@ -27,11 +27,11 @@ Outside Vercel, set `DATABASE_URL_DIRECT`, run `pnpm db:apply`, define `BOOTSTRA
 
 ## Production verification and recovery
 
-Treat a successful Vercel build as the beginning of production verification, not its end. Confirm the deployed source commit, migration logs, `GET /api/health`, unauthenticated redirect, invited administrator login, one permission-checked CRUD path, audit events, `/users`, `/settings`, and one AI conversation when AI is enabled. Review runtime logs for the verified flow.
+Treat a successful Vercel build as the beginning of production verification, not its end. Confirm the deployed source commit, migration logs, `GET /api/health`, unauthenticated redirect, invited administrator login, one permission-checked CRUD path, audit events, `/users`, `/settings`, and one authenticated MCP cycle when agent access is enabled. Review runtime logs for the verified flow.
 
-Keep one independent Vercel project, Neon database, Clerk application, and credential set for this application. Store production secrets only in the deployment environment and an approved recovery system; never commit them. Back up `SETTINGS_ENCRYPTION_KEY` before users connect providers. Losing it makes encrypted credentials unreadable.
+Keep one independent Vercel project, Neon database, Clerk application, and credential set for this application. Store production secrets only in the deployment environment and an approved recovery system; never commit them.
 
-A code rollback does not roll back PostgreSQL. Prefer additive, backward-compatible migrations and require an explicit data backup, migration, and rollback plan for destructive changes. Configure database backup or point-in-time recovery appropriate to the application and test restoration. Record who owns recovery for source, data, identity, environment variables, and encryption keys.
+A code rollback does not roll back PostgreSQL. Prefer additive, backward-compatible migrations and require an explicit data backup, migration, and rollback plan for destructive changes. Configure database backup or point-in-time recovery appropriate to the application and test restoration. Record who owns recovery for source, data, identity, and environment variables.
 
 ## Safe application evolution
 
@@ -72,17 +72,9 @@ AppSpec rules execute before create, update, delete, or both create/update (`bef
 
 Administrators can inspect the active definitions at `/rules`. The kernel deliberately rejects arbitrary expressions and does not provide approvals, schedules, email, webhooks, external writes, or AI actions.
 
-## Application assistant
-
-The runtime includes a persistent, read-only application assistant at `/assistant`. Its tools are derived from `app-spec.json` and call the same bounded repository functions used by the application. Every tool call checks the current user's generated entity permissions; the model never receives SQL or database credentials.
-
-Each authenticated user can open `/settings` and connect a personal OpenAI or Anthropic API key. Keys are encrypted with AES-256-GCM before PostgreSQL storage, never rendered back to the browser, and are isolated by user. Define `SETTINGS_ENCRYPTION_KEY` as exactly 32 random bytes encoded as base64 (or 64 hexadecimal characters); preserve and back it up because losing it makes stored credentials unreadable.
-
-The application may also provide `OPENAI_API_KEY` for shared direct OpenAI access or `AI_GATEWAY_API_KEY` for multi-provider routing. Personal provider credentials take precedence for their provider. Optionally restrict selectable models with `AI_ALLOWED_MODELS`. Conversations, UI messages, runs, token usage, and bounded tool-call metadata are stored in PostgreSQL. This first layer cannot create, update, delete, export, or call external systems. Those capabilities require explicit approval policies and reviewed feature adapters.
-
 ## MCP access for external agents
 
-The application exposes a stateless Streamable HTTP endpoint at `/api/mcp` with separately scoped read, write, and delete capabilities. MCP is independent from the embedded assistant: an external coordinator such as Riel, Codex, or Claude brings its own model and does not require `OPENAI_API_KEY`, `AI_GATEWAY_API_KEY`, or a personal provider key in this application.
+The application exposes a stateless Streamable HTTP endpoint at `/api/mcp` with separately scoped read, write, and delete capabilities. MCP is the default AI and agent interface: an external coordinator such as Riel, Codex, or Claude brings its own model, model provider, context, and orchestration. The application therefore requires no embedded chat or LLM credential.
 
 After applying migrations, administrators create, revoke, and reactivate agent connections at `/agents`. The interface displays the credential once and prepares a ready-to-paste Claude Code command. The CLI remains available for automation and recovery:
 
@@ -98,7 +90,7 @@ Mutation tools remain constrained by AppSpec rules, idempotency, transactional a
 
 ## Application settings
 
-`/settings` is the extensible administration surface. Every user owns personal preferences and encrypted connections; administrators additionally manage application-wide locale and timezone. New connectors and module settings belong in the same namespaced `app_setting`, `app_user_setting`, and `app_user_secret` primitives instead of ad hoc environment variables or domain-specific tables.
+`/settings` is an administrator-only surface backed by `app_setting`, a namespaced key/value registry with a native `jsonb` value. It accepts strings, numbers, booleans, objects, arrays, and null, and is the default home for non-secret module and presentation options. Use `getApplicationOption(namespace, key, fallback)` from `src/features/settings/store.ts` in client features. Keep tokens, passwords, and private credentials in deployment environment variables or an approved secret manager, never in `app_setting`.
 
 ## Ownership
 

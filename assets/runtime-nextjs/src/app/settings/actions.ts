@@ -2,82 +2,58 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireAllowedAiModel } from "@/features/ai/config";
-import { isPersonalAiProviderKey } from "@/features/settings/catalog";
-import { encryptSecret, settingsEncryptionConfigured } from "@/features/settings/crypto";
 import {
-  deleteUserAiSecret,
+  deleteApplicationOption,
   setApplicationGeneralSettings,
-  setUserAiPreferredModel,
-  upsertUserAiSecret,
+  upsertApplicationOption,
 } from "@/features/settings/store";
 import { recordAuditEvent } from "@/lib/audit";
-import { requireUser, requireUserManagementAccess } from "@/lib/auth";
+import { requireUserManagementAccess } from "@/lib/auth";
 import { withTransaction } from "@/lib/db";
+
+const OPTION_NAME = /^[a-z][a-z0-9_.-]{0,63}$/;
+const RESERVED_OPTIONS = new Set(["general.locale", "general.timezone"]);
+const MAX_OPTION_VALUE_BYTES = 64 * 1024;
 
 function refreshSettings() {
   revalidatePath("/settings");
-  revalidatePath("/assistant");
   revalidatePath("/audit");
 }
 
-export async function saveAiCredentialAction(formData: FormData) {
-  const user = await requireUser();
-  const providerKey = String(formData.get("provider") ?? "");
-  const apiKey = String(formData.get("api_key") ?? "").trim();
-  if (!isPersonalAiProviderKey(providerKey) || apiKey.length < 20 || apiKey.length > 512 || /\s/.test(apiKey)) {
-    redirect("/settings?error=invalid_credential");
+function optionIdentity(formData: FormData) {
+  const namespace = String(formData.get("namespace") ?? "").trim();
+  const key = String(formData.get("key") ?? "").trim();
+  if (!OPTION_NAME.test(namespace) || !OPTION_NAME.test(key)) {
+    redirect("/settings?error=invalid_option_name");
   }
-  if (!settingsEncryptionConfigured()) redirect("/settings?error=encryption_unavailable");
-  const encrypted = encryptSecret(apiKey);
-  await withTransaction(async (client) => {
-    await upsertUserAiSecret(client, user.id, providerKey, encrypted);
-    await recordAuditEvent(client, {
-      actorId: user.id,
-      entityKey: "app_user_secret",
-      recordId: user.id,
-      action: "ai_credential_save",
-      changes: { provider: providerKey },
-    });
-  });
-  refreshSettings();
-  redirect(`/settings?saved=credential&provider=${providerKey}`);
+  return { namespace, key, identity: `${namespace}.${key}` };
 }
 
-export async function removeAiCredentialAction(formData: FormData) {
-  const user = await requireUser();
-  const providerKey = String(formData.get("provider") ?? "");
-  if (!isPersonalAiProviderKey(providerKey)) redirect("/settings?error=invalid_provider");
-  await withTransaction(async (client) => {
-    await deleteUserAiSecret(client, user.id, providerKey);
-    await recordAuditEvent(client, {
-      actorId: user.id,
-      entityKey: "app_user_secret",
-      recordId: user.id,
-      action: "ai_credential_remove",
-      changes: { provider: providerKey },
-    });
-  });
-  refreshSettings();
-  redirect(`/settings?saved=removed&provider=${providerKey}`);
-}
-
-export async function saveAiPreferenceAction(formData: FormData) {
-  const user = await requireUser();
-  const modelId = String(formData.get("model_id") ?? "");
-  const model = await requireAllowedAiModel(user.id, modelId);
-  await withTransaction(async (client) => {
-    await setUserAiPreferredModel(client, user.id, model.id);
-    await recordAuditEvent(client, {
-      actorId: user.id,
-      entityKey: "app_user_setting",
-      recordId: user.id,
-      action: "ai_preference_update",
-      changes: { modelId: model.id },
-    });
-  });
-  refreshSettings();
-  redirect("/settings?saved=preference");
+function parseOptionValue(formData: FormData) {
+  const valueType = String(formData.get("value_type") ?? "");
+  const rawValue = String(formData.get("value") ?? "");
+  if (Buffer.byteLength(rawValue, "utf8") > MAX_OPTION_VALUE_BYTES) {
+    redirect("/settings?error=option_too_large");
+  }
+  if (valueType === "text") return { value: rawValue, valueType };
+  if (valueType === "number") {
+    if (!rawValue.trim()) redirect("/settings?error=invalid_option_value");
+    const value = Number(rawValue);
+    if (!Number.isFinite(value)) redirect("/settings?error=invalid_option_value");
+    return { value, valueType };
+  }
+  if (valueType === "boolean") {
+    if (rawValue !== "true" && rawValue !== "false") redirect("/settings?error=invalid_option_value");
+    return { value: rawValue === "true", valueType };
+  }
+  if (valueType === "json") {
+    try {
+      return { value: JSON.parse(rawValue) as unknown, valueType };
+    } catch {
+      redirect("/settings?error=invalid_option_value");
+    }
+  }
+  redirect("/settings?error=invalid_option_type");
 }
 
 export async function saveApplicationSettingsAction(formData: FormData) {
@@ -99,4 +75,41 @@ export async function saveApplicationSettingsAction(formData: FormData) {
   });
   refreshSettings();
   redirect("/settings?saved=application");
+}
+
+export async function saveApplicationOptionAction(formData: FormData) {
+  const user = await requireUserManagementAccess();
+  const option = optionIdentity(formData);
+  if (RESERVED_OPTIONS.has(option.identity)) redirect("/settings?error=reserved_option");
+  const parsed = parseOptionValue(formData);
+  await withTransaction(async (client) => {
+    await upsertApplicationOption(client, user.id, { namespace: option.namespace, key: option.key, value: parsed.value });
+    await recordAuditEvent(client, {
+      actorId: user.id,
+      entityKey: "app_setting",
+      recordId: option.identity,
+      action: "application_option_update",
+      changes: { namespace: option.namespace, key: option.key, valueType: parsed.valueType },
+    });
+  });
+  refreshSettings();
+  redirect("/settings?saved=option");
+}
+
+export async function deleteApplicationOptionAction(formData: FormData) {
+  const user = await requireUserManagementAccess();
+  const option = optionIdentity(formData);
+  if (RESERVED_OPTIONS.has(option.identity)) redirect("/settings?error=reserved_option");
+  await withTransaction(async (client) => {
+    await deleteApplicationOption(client, option.namespace, option.key);
+    await recordAuditEvent(client, {
+      actorId: user.id,
+      entityKey: "app_setting",
+      recordId: option.identity,
+      action: "application_option_delete",
+      changes: { namespace: option.namespace, key: option.key },
+    });
+  });
+  refreshSettings();
+  redirect("/settings?saved=option_removed");
 }

@@ -12,10 +12,9 @@ export type AuditAction =
   | "user_status"
   | "user_invite"
   | "user_link"
-  | "ai_credential_save"
-  | "ai_credential_remove"
-  | "ai_preference_update"
   | "application_settings_update"
+  | "application_option_update"
+  | "application_option_delete"
   | "agent_create"
   | "agent_status";
 

@@ -74,3 +74,31 @@ These operations are not forbidden. They require a custom reviewed migration, da
 - A source rollback does not roll back PostgreSQL.
 - An evolution plan is not evidence that the migration succeeded against real data.
 - Never use a production database as the first migration test.
+
+## Runtime and Factory upgrades
+
+Not every update changes AppSpec. Authentication adapters, MCP, settings, dependencies,
+shared UI, and other runtime capabilities may evolve while the domain schema remains
+unchanged. Treat these upgrades as a separate compatibility exercise:
+
+1. Snapshot and verify the deployed source revision before editing.
+2. Keep `app-spec.json`, generated migrations, and every applied custom migration unchanged
+   unless the feature genuinely requires an additive database change.
+3. Diff the current application against the new Factory runtime by ownership zone. Port only
+   reviewed runtime and client-owned changes; never replace the complete repository blindly.
+4. When removing a feature, remove its routes, navigation, dependencies, environment contract,
+   documentation, and tests together. Historical tables may remain when dropping them adds
+   unnecessary migration risk; document that they are inactive.
+5. Regenerate the dependency lockfile and ensure it no longer declares removed direct
+   dependencies. A stale build cache may still reference deleted routes, so validate from a
+   clean generated cache before treating type errors as source failures.
+6. Run Factory regression tests, application typecheck, and a clean production build before
+   committing. Record the exact verified commit.
+7. Publish the source before production deployment. Let the normal migration runner prove that
+   applied migration checksums remain unchanged.
+8. Verify health, closed authentication, affected administrator flows, MCP compatibility,
+   audit attribution, and production runtime errors. Keep the previous deployment available
+   for code rollback, remembering that rollback never reverses PostgreSQL changes.
+
+If an upgrade changes persisted data, split it into an additive migration phase and a later
+runtime phase that remains compatible with both old and new data during rollout.

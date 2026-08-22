@@ -16,7 +16,6 @@ EXPECTED_FILES = {
     "BUILD_REPORT.md",
     "database/generated/001_initial.sql",
     "database/custom/EXTENSIONS.md",
-    "database/custom/100_ai_foundation.sql",
     "database/custom/110_user_management.sql",
     "database/custom/120_clerk_authentication.sql",
     "database/custom/130_application_settings.sql",
@@ -52,10 +51,6 @@ EXPECTED_FILES = {
     "src/app/views/[view]/page.tsx",
     "src/app/attachments/actions.ts",
     "src/app/attachments/[id]/route.ts",
-    "src/app/assistant/actions.ts",
-    "src/app/assistant/page.tsx",
-    "src/app/assistant/[id]/page.tsx",
-    "src/app/api/assistant/route.ts",
     "src/app/api/mcp/route.ts",
     "src/app/record-operations/actions.ts",
     "src/app/records/[entity]/page.tsx",
@@ -78,15 +73,6 @@ EXPECTED_FILES = {
     "src/features/auth/adapter.ts",
     "src/features/auth/config.ts",
     "src/features/auth/invitations.ts",
-    "src/features/ai/access.ts",
-    "src/features/ai/agent.ts",
-    "src/features/ai/config.ts",
-    "src/features/ai/model-adapter.ts",
-    "src/features/ai/store.ts",
-    "src/features/ai/tools.ts",
-    "src/features/ai/components/application-assistant-chat.tsx",
-    "src/features/settings/catalog.ts",
-    "src/features/settings/crypto.ts",
     "src/features/settings/store.ts",
     "src/features/users/store.ts",
     "src/features/mcp/access.ts",
@@ -245,31 +231,21 @@ def main() -> int:
     repository_source = repository_path.read_text(encoding="utf-8") if repository_path.is_file() else ""
     if "countFilteredRecords" not in repository_source or "OFFSET" not in repository_source:
         failures.append("Record lists are missing database-backed pagination.")
-    assistant_route_path = project / "src/app/api/assistant/route.ts"
-    assistant_route = assistant_route_path.read_text(encoding="utf-8") if assistant_route_path.is_file() else ""
-    for invariant in ("getCurrentUser", "canUseApplicationAssistant", "validateUIMessages", "createAgentUIStreamResponse", "saveAiMessages"):
-        if invariant not in assistant_route:
-            failures.append(f"Application assistant route is missing: {invariant}.")
-    assistant_tools_path = project / "src/features/ai/tools.ts"
-    assistant_tools = assistant_tools_path.read_text(encoding="utf-8") if assistant_tools_path.is_file() else ""
-    for invariant in ("hasPermission", "countFilteredRecords", "listRecords", "getRecord"):
-        if invariant not in assistant_tools:
-            failures.append(f"Application assistant tools are missing: {invariant}.")
     settings_actions_path = project / "src/app/settings/actions.ts"
     settings_actions = settings_actions_path.read_text(encoding="utf-8") if settings_actions_path.is_file() else ""
-    for invariant in ("encryptSecret", "requireUser", "requireUserManagementAccess", "recordAuditEvent", "withTransaction"):
+    for invariant in ("saveApplicationOptionAction", "deleteApplicationOptionAction", "requireUserManagementAccess", "recordAuditEvent", "withTransaction"):
         if invariant not in settings_actions:
             failures.append(f"Application settings actions are missing: {invariant}.")
-    settings_crypto_path = project / "src/features/settings/crypto.ts"
-    settings_crypto = settings_crypto_path.read_text(encoding="utf-8") if settings_crypto_path.is_file() else ""
-    for invariant in ("aes-256-gcm", "SETTINGS_ENCRYPTION_KEY", "authenticationTag"):
-        if invariant not in settings_crypto:
-            failures.append(f"Encrypted user settings are missing: {invariant}.")
+    settings_store_path = project / "src/features/settings/store.ts"
+    settings_store = settings_store_path.read_text(encoding="utf-8") if settings_store_path.is_file() else ""
+    for invariant in ("getApplicationOption", "listApplicationOptions", "upsertApplicationOption", "deleteApplicationOption"):
+        if invariant not in settings_store:
+            failures.append(f"Application option store is missing: {invariant}.")
     settings_migration_path = project / "database/custom/130_application_settings.sql"
     settings_migration = settings_migration_path.read_text(encoding="utf-8") if settings_migration_path.is_file() else ""
-    for invariant in ("app_setting", "app_user_setting", "app_user_secret"):
+    for invariant in ("app_setting", "namespace", "key", "jsonb"):
         if invariant not in settings_migration:
-            failures.append(f"Application settings migration is missing: {invariant}.")
+            failures.append(f"Application options migration is missing: {invariant}.")
     mcp_migration_path = project / "database/custom/140_mcp_agents.sql"
     mcp_migration = mcp_migration_path.read_text(encoding="utf-8") if mcp_migration_path.is_file() else ""
     for invariant in ("app_agent", "token_hash", "app_agent_event", "records:read"):
@@ -331,9 +307,11 @@ def main() -> int:
             failures.append("Generic database smoke command is missing.")
         if "exceljs" not in package.get("dependencies", {}):
             failures.append("Excel import/export dependency is missing.")
-        for dependency in ("ai", "@ai-sdk/react", "@ai-sdk/openai", "@ai-sdk/anthropic", "zod"):
-            if dependency not in package.get("dependencies", {}):
-                failures.append(f"Application assistant dependency is missing: {dependency}.")
+        if "zod" not in package.get("dependencies", {}):
+            failures.append("Schema validation dependency is missing: zod.")
+        for dependency in ("ai", "@ai-sdk/react", "@ai-sdk/openai", "@ai-sdk/anthropic"):
+            if dependency in package.get("dependencies", {}):
+                failures.append(f"Removed embedded assistant dependency is still present: {dependency}.")
         if "@clerk/nextjs" not in package.get("dependencies", {}):
             failures.append("Clerk authentication dependency is missing.")
         if "@modelcontextprotocol/server" not in package.get("dependencies", {}):

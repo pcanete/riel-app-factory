@@ -118,7 +118,7 @@ assets/runtime-nextjs/       Runtime portable de las aplicaciones generadas
 
 ## Seguridad y propiedad de los datos
 
-Nunca publiques `.env.local`, credenciales, URLs privadas de base de datos, secretos de Clerk ni `SETTINGS_ENCRYPTION_KEY`. Cada aplicación necesita una clave de cifrado única y una copia recuperable en el gestor de secretos aprobado. Si se pierde, las credenciales personales almacenadas no pueden descifrarse.
+Nunca publiques `.env.local`, credenciales, URLs privadas de base de datos ni secretos de Clerk. `app_setting` admite JSON flexible, pero no es un almacén de secretos: los tokens, contraseñas y claves privadas pertenecen a variables de entorno o al gestor de secretos aprobado.
 
 La copia del código no reemplaza la copia de la base. El código vive en GitHub; los datos, en PostgreSQL; la configuración de despliegue, en el proveedor; y la identidad, en Clerk. Cada capa necesita su propio plan de recuperación.
 

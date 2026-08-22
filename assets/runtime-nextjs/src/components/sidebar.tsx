@@ -2,7 +2,6 @@ import Link from "next/link";
 import { clearDevelopmentRoleAction } from "@/app/dev-access/actions";
 import { SessionSignOut } from "@/components/session-sign-out";
 import { clerkAuthConfigured } from "@/features/auth/config";
-import { canUseApplicationAssistant } from "@/features/ai/access";
 import { canManageUsers, canViewAudit, canViewRules, getCurrentUser, hasPermission, hasViewAccess } from "@/lib/auth";
 import { localPreviewAuthEnabled } from "@/lib/runtime-access";
 import { runtimeSpec } from "@/lib/spec";
@@ -34,10 +33,7 @@ export async function Sidebar() {
         {viewLinks.map((link) => (
           <Link className="nav-link" href={link.href} key={link.key}>{link.label}</Link>
         ))}
-        {user && canUseApplicationAssistant(user) && (
-          <Link className="nav-link assistant-link" href="/assistant">Asistente IA</Link>
-        )}
-        {user && <Link className="nav-link" href="/settings">Configuración</Link>}
+        {user && canManageUsers(user) && <Link className="nav-link" href="/settings">Configuración</Link>}
         {user && canManageUsers(user) && <Link className="nav-link" href="/users">Usuarios</Link>}
         {user && canViewAudit(user) && <Link className="nav-link" href="/agents">Agentes</Link>}
         {user && canViewAudit(user) && <Link className="nav-link audit-link" href="/audit">Auditoría</Link>}

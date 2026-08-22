@@ -167,8 +167,8 @@ class ScaffoldTests(unittest.TestCase):
         self.assertIn("CSV/XLSX imports are size-limited", report)
         self.assertIn("Generic imports create new records only", report)
         self.assertIn("validated expression tree", report)
-        self.assertIn("persistent application assistant", report)
-        self.assertIn("bundled assistant is read-only", report)
+        self.assertIn("namespaced JSON application options", report)
+        self.assertIn("External AI and agent clients use MCP", report)
         self.assertIn("Remote MCP uses one-way-hashed agent tokens", report)
         self.assertIn("MCP writes are immediate", report)
 

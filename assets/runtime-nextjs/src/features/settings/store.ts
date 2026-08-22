@@ -1,105 +1,69 @@
 import "server-only";
 import type { PoolClient } from "pg";
-import type { PersonalAiProviderKey } from "@/features/settings/catalog";
-import { decryptSecret, type EncryptedSecret } from "@/features/settings/crypto";
 import { sql, transactionSql } from "@/lib/db";
-
-type SecretRow = {
-  key: string;
-  ciphertext: string;
-  initialization_vector: string;
-  authentication_tag: string;
-  key_version: number;
-  updated_at: Date;
-};
 
 type SettingRow = { key: string; value: unknown };
 
-export async function getUserAiSettings(userId: string) {
-  const [secrets, settings] = await Promise.all([
-    sql<SecretRow>(
-      `SELECT key, ciphertext, initialization_vector, authentication_tag, key_version, updated_at
-         FROM app_user_secret
-        WHERE user_id = $1 AND namespace = 'ai'`,
-      [userId],
-    ),
-    sql<SettingRow>(
-      `SELECT key, value
-         FROM app_user_setting
-        WHERE user_id = $1 AND namespace = 'ai'`,
-      [userId],
-    ),
-  ]);
-  const preference = settings.find((setting) => setting.key === "preferred_model")?.value;
-  return {
-    connectedProviders: new Set(secrets.map((secret) => secret.key as PersonalAiProviderKey)),
-    preferredModelId: typeof preference === "string" ? preference : null,
-    updatedAt: Object.fromEntries(secrets.map((secret) => [secret.key, secret.updated_at])) as Partial<Record<PersonalAiProviderKey, Date>>,
-  };
-}
+export type ApplicationOptionRow = {
+  namespace: string;
+  key: string;
+  value: unknown;
+  updated_at: Date;
+  updated_by: string | null;
+  updated_by_name: string | null;
+  updated_by_email: string | null;
+};
 
-export async function getUserAiSecret(userId: string, providerKey: PersonalAiProviderKey) {
-  const rows = await sql<SecretRow>(
-    `SELECT key, ciphertext, initialization_vector, authentication_tag, key_version, updated_at
-       FROM app_user_secret
-      WHERE user_id = $1 AND namespace = 'ai' AND key = $2
-      LIMIT 1`,
-    [userId, providerKey],
+export async function getApplicationOption<T>(namespace: string, key: string, fallback: T): Promise<T> {
+  const rows = await sql<{ value: T }>(
+    `SELECT value FROM app_setting WHERE namespace = $1 AND key = $2 LIMIT 1`,
+    [namespace, key],
   );
-  const row = rows[0];
-  if (!row) return null;
-  return decryptSecret({
-    ciphertext: row.ciphertext,
-    initializationVector: row.initialization_vector,
-    authenticationTag: row.authentication_tag,
-    keyVersion: row.key_version,
-  });
+  return rows.length ? rows[0].value : fallback;
 }
 
-export async function upsertUserAiSecret(
+export async function listApplicationOptions() {
+  return sql<ApplicationOptionRow>(
+    `SELECT setting.namespace,
+            setting.key,
+            setting.value,
+            setting.updated_at,
+            setting.updated_by,
+            actor.display_name AS updated_by_name,
+            actor.email AS updated_by_email
+       FROM app_setting AS setting
+       LEFT JOIN app_user AS actor ON actor.id = setting.updated_by
+      ORDER BY setting.namespace, setting.key`,
+  );
+}
+
+export async function upsertApplicationOption(
   client: PoolClient,
-  userId: string,
-  providerKey: PersonalAiProviderKey,
-  secret: EncryptedSecret,
+  actorId: string,
+  input: { namespace: string; key: string; value: unknown },
 ) {
   await transactionSql(
     client,
-    `INSERT INTO app_user_secret
-       (user_id, namespace, key, ciphertext, initialization_vector, authentication_tag, key_version)
-     VALUES ($1, 'ai', $2, $3, $4, $5, $6)
-     ON CONFLICT (user_id, namespace, key) DO UPDATE
-       SET ciphertext = EXCLUDED.ciphertext,
-           initialization_vector = EXCLUDED.initialization_vector,
-           authentication_tag = EXCLUDED.authentication_tag,
-           key_version = EXCLUDED.key_version,
+    `INSERT INTO app_setting (namespace, key, value, updated_by)
+     VALUES ($1, $2, $3::jsonb, $4)
+     ON CONFLICT (namespace, key) DO UPDATE
+       SET value = EXCLUDED.value,
+           updated_by = EXCLUDED.updated_by,
            updated_at = now()`,
-    [userId, providerKey, secret.ciphertext, secret.initializationVector, secret.authenticationTag, secret.keyVersion],
+    [input.namespace, input.key, JSON.stringify(input.value), actorId],
   );
 }
 
-export async function deleteUserAiSecret(client: PoolClient, userId: string, providerKey: PersonalAiProviderKey) {
+export async function deleteApplicationOption(client: PoolClient, namespace: string, key: string) {
   await transactionSql(
     client,
-    `DELETE FROM app_user_secret WHERE user_id = $1 AND namespace = 'ai' AND key = $2`,
-    [userId, providerKey],
-  );
-}
-
-export async function setUserAiPreferredModel(client: PoolClient, userId: string, modelId: string) {
-  await transactionSql(
-    client,
-    `INSERT INTO app_user_setting (user_id, namespace, key, value)
-     VALUES ($1, 'ai', 'preferred_model', to_jsonb($2::text))
-     ON CONFLICT (user_id, namespace, key) DO UPDATE
-       SET value = EXCLUDED.value, updated_at = now()`,
-    [userId, modelId],
+    `DELETE FROM app_setting WHERE namespace = $1 AND key = $2`,
+    [namespace, key],
   );
 }
 
 export async function getApplicationSettings() {
-  const rows = await sql<SettingRow>(
-    `SELECT key, value FROM app_setting WHERE namespace = 'general'`,
-  );
+  const rows = await sql<SettingRow>(`SELECT key, value FROM app_setting WHERE namespace = 'general'`);
   const values = Object.fromEntries(rows.map((row) => [row.key, row.value]));
   return {
     locale: typeof values.locale === "string" ? values.locale : "es-AR",
@@ -113,14 +77,6 @@ export async function setApplicationGeneralSettings(
   input: { locale: string; timezone: string },
 ) {
   for (const [key, value] of Object.entries(input)) {
-    await transactionSql(
-      client,
-      `INSERT INTO app_setting (namespace, key, value, updated_by)
-       VALUES ('general', $1, to_jsonb($2::text), $3)
-       ON CONFLICT (namespace, key) DO UPDATE
-         SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by, updated_at = now()`,
-      [key, value, actorId],
-    );
+    await upsertApplicationOption(client, actorId, { namespace: "general", key, value });
   }
 }
-

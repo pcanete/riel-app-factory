@@ -66,4 +66,4 @@ Las mutaciones generan además el mismo evento de auditoría transaccional que u
 
 Desactivá o hacé vencer la credencial en `app_agent` cuando deje de utilizarse. Nunca compartas una misma credencial entre agentes o ambientes independientes.
 
-El asistente embebido es opcional e independiente. MCP debe funcionar aunque la aplicación no tenga claves de OpenAI, Anthropic o AI Gateway.
+El runtime base no incluye un asistente embebido. Si un cliente necesita uno, debe agregarse como feature opcional e independiente; MCP funciona sin claves de OpenAI, Anthropic o AI Gateway dentro de la aplicación.

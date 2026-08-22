@@ -956,7 +956,7 @@ def compile_report(spec: dict[str, Any]) -> str:
         "- Record attachments inherit entity permissions, are size/type limited, stored transactionally in PostgreSQL, and audited.",
         "- Named table, kanban, calendar, and dashboard views execute only validated metadata and identifiers.",
         "- Pagination and opt-in bulk, kanban, and calendar mutations reuse server permissions, deterministic rules, transactions, and audit.",
-        "- The persistent application assistant exposes only bounded read tools and checks the current user's entity permissions on every call.",
+        "- The runtime provides namespaced JSON application options for reusable module and presentation settings without adding domain-specific tables.",
         "- Remote MCP uses one-way-hashed agent tokens, independent read/write/delete scopes, AppSpec role permissions, bounded tools, host checks, idempotency, rules, transactional mutation audit, and per-tool attribution.",
         "",
         "## Production gates",
@@ -966,7 +966,7 @@ def compile_report(spec: dict[str, Any]) -> str:
         "- Add provider-specific end-to-end authentication, sign-out, and authorization tests.",
         "- Define audit-log retention, export, and access-review policy for the client.",
         "- Schedule deletion of expired import-preview batches and define the client's import retention policy.",
-        "- Configure the AI provider secret, model allowlist, per-user budgets, retention policy, and provider data terms.",
+        "- Review application options, keep secrets out of `app_setting`, and document every namespace owned by a client feature.",
         "- Create distinct expiring MCP credentials with the least required access, verify a real client read/write cycle, and define agent-event and idempotency retention plus access review.",
         "- Configure deployment, secrets, backups, logging, and monitoring per client.",
     ]
@@ -984,7 +984,7 @@ def compile_report(spec: dict[str, Any]) -> str:
         "- Generic imports create new records only. Client-specific update, merge, or upsert behavior belongs in `src/features/`."
     )
     lines.append(
-        "- The bundled assistant is read-only. AI writes, approvals, connectors, schedules, email, webhooks, and external side effects require reviewed client features."
+        "- External AI and agent clients use MCP. Optional embedded AI, approvals, connectors, schedules, email, webhooks, and other side effects require reviewed client features."
     )
     lines.append(
         "- MCP writes are immediate only for explicitly scoped agents and AppSpec-authorized actions; deletion additionally requires its own scope and explicit confirmation. Client-sensitive actions may still require a reviewed approval adapter."
@@ -1018,8 +1018,11 @@ This directory is never owned by the generator. Add client-specific calculations
 integrations, workflows, reports, AI tools, and bespoke UI here. Register each feature
 through an explicit adapter; do not edit files in `src/generated/`.
 
-`ai/` contains the neutral read-only application assistant. Extend its tool registry
-through reviewed feature adapters; never bypass application permissions with direct SQL.
+External agents use the authenticated MCP endpoint. Add embedded AI only as an optional
+client feature, and never bypass application permissions with direct SQL.
+
+`settings/store.ts` exposes namespaced JSON application options. Use those primitives
+for non-secret module configuration instead of creating ad hoc settings tables.
 
 `auth/adapter.ts` uses Clerk only as the production identity boundary. Keep active
 status, AppSpec roles, permissions, and invitation provisioning in PostgreSQL.
