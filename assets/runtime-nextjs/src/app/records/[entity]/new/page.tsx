@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { RecordForm } from "@/components/record-form";
 import { canAccessRelationshipOptions, requirePermission } from "@/lib/auth";
-import { relationshipOptions } from "@/lib/repository";
+import { relationshipOptions, userReferenceOptions } from "@/lib/repository";
 import { getEntity } from "@/lib/spec";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +18,7 @@ export default async function NewRecordPage({
   if (!entity) notFound();
   const user = await requirePermission(entity.key, "create");
   if (!canAccessRelationshipOptions(user, entity)) return notFound();
-  const options = await relationshipOptions(entity);
+  const [options, userOptions] = await Promise.all([relationshipOptions(entity), userReferenceOptions(entity)]);
 
   return (
     <>
@@ -30,7 +30,7 @@ export default async function NewRecordPage({
         </div>
       </div>
       {query.rule_error && <div className="notice rule-blocked">{query.rule_error}</div>}
-      <RecordForm entity={entity} relationshipOptions={options} />
+      <RecordForm entity={entity} relationshipOptions={options} userReferenceOptions={userOptions} />
     </>
   );
 }

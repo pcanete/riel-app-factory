@@ -13,7 +13,8 @@ export type FieldType =
   | "enum"
   | "tags"
   | "file"
-  | "json";
+  | "json"
+  | "user_reference";
 
 export type FieldSpec = {
   key: string;

@@ -93,6 +93,29 @@ class ScaffoldTests(unittest.TestCase):
         errors = validate_spec(spec)
         self.assertTrue(any("required relationships cannot use set_null" in error for error in errors))
 
+    def test_user_reference_compiles_real_user_foreign_key(self) -> None:
+        spec = copy.deepcopy(self.spec)
+        equipment = next(entity for entity in spec["entities"] if entity["key"] == "equipment")
+        equipment["fields"].append({
+            "key": "usuario_id", "label": "Cuenta", "type": "user_reference", "unique": True,
+        })
+        self.assertEqual(validate_spec(spec), [])
+        sql = compile_sql(spec)
+        self.assertIn('"usuario_id" uuid UNIQUE', sql)
+        self.assertIn('FOREIGN KEY ("usuario_id") REFERENCES app_user(id) ON DELETE RESTRICT', sql)
+        self.assertNotIn('CREATE INDEX "ix_equipment_usuario_id"', sql)
+
+    def test_user_reference_rejects_default_and_search(self) -> None:
+        spec = copy.deepcopy(self.spec)
+        equipment = next(entity for entity in spec["entities"] if entity["key"] == "equipment")
+        equipment["fields"].append({
+            "key": "usuario_id", "label": "Cuenta", "type": "user_reference",
+            "default": "00000000-0000-4000-8000-000000000000", "searchable": True,
+        })
+        errors = validate_spec(spec)
+        self.assertTrue(any("default is not supported" in error for error in errors))
+        self.assertTrue(any("searchable is not supported" in error for error in errors))
+
     def test_freeform_rule_expression_is_rejected(self) -> None:
         spec = copy.deepcopy(self.spec)
         spec["rules"][0]["if"] = "status == 'completed'"

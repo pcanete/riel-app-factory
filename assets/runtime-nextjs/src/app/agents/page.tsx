@@ -1,7 +1,7 @@
+import Link from "next/link";
 import { setAgentResponsibilityAction, setAgentStatusAction } from "@/app/agents/actions";
 import { AgentCreateForm } from "@/components/agent-create-form";
-import { Pagination } from "@/components/pagination";
-import { countAgentEvents, listAgentEvents, listManagedAgents } from "@/features/mcp/admin";
+import { listManagedAgents } from "@/features/mcp/admin";
 import { requireAgentManagementAccess } from "@/lib/auth";
 import { listManagedUsers } from "@/features/users/store";
 import { formatDateTimeValue } from "@/lib/presentation";
@@ -18,18 +18,12 @@ const successMessages: Record<string, string> = {
 export default async function AgentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; saved?: string; page?: string }>;
+  searchParams: Promise<{ error?: string; saved?: string }>;
 }) {
   const actor = await requireAgentManagementAccess();
   const requested = await searchParams;
-  const pageSize = 25;
-  const total = await countAgentEvents();
-  const pages = Math.max(1, Math.ceil(total / pageSize));
-  const requestedPage = Number(requested.page ?? "1");
-  const page = Number.isInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, pages) : 1;
-  const [agents, events, owners] = await Promise.all([
+  const [agents, owners] = await Promise.all([
     listManagedAgents(),
-    listAgentEvents({ limit: pageSize, offset: (page - 1) * pageSize }),
     listManagedUsers({ active: true, limit: 200 }),
   ]);
   return (
@@ -40,6 +34,7 @@ export default async function AgentsPage({
           <h1>Agentes</h1>
           <p className="subtitle">Creá y controlá conexiones para Claude, Riel u otros agentes sin usar la terminal.</p>
         </div>
+        <Link className="button secondary" href="/audit?source=agent">Ver actividad y auditoría</Link>
       </div>
       {requested.error === "not_found" && <div className="notice import-error">La conexión solicitada no existe.</div>}
       {requested.error === "invalid_owner" && <div className="notice import-error">Elegí una persona responsable activa.</div>}
@@ -84,7 +79,7 @@ export default async function AgentsPage({
                     <td data-label="Estado"><span className={`user-status ${agent.active ? "on" : "off"}`}>{agent.active ? "Activo" : "Inactivo"}</span></td>
                     <td data-label="Vencimiento">{agent.expires_at ? formatDateTimeValue(agent.expires_at, runtimeSpec.app.locale) : "Sin vencimiento"}</td>
                     <td data-label="Último uso">{agent.last_used_at ? formatDateTimeValue(agent.last_used_at, runtimeSpec.app.locale) : "Nunca"}</td>
-                    <td data-label="Llamadas">{agent.event_count}</td>
+                    <td data-label="Llamadas"><Link className="record-link" href={`/audit?source=agent&agent=${agent.id}`}>{agent.event_count}</Link></td>
                     <td data-label="Acción">
                       <form action={setAgentStatusAction}>
                         <input name="id" type="hidden" value={agent.id} />
@@ -100,31 +95,6 @@ export default async function AgentsPage({
         </div>
       </section>
 
-      <section>
-        <div className="section-heading"><h2>Actividad reciente</h2></div>
-        <div className="table-wrap mobile-card-wrap">
-          {events.length ? (
-            <table className="audit-table mobile-cards">
-              <thead><tr><th>Fecha</th><th>Agente</th><th>Responsable</th><th>Herramienta</th><th>Entidad</th><th>Estado</th><th>Resultado</th><th>Entrada</th></tr></thead>
-              <tbody>
-                {events.map((event) => (
-                  <tr key={event.id}>
-                    <td data-label="Fecha">{formatDateTimeValue(event.started_at, runtimeSpec.app.locale)}</td>
-                    <td data-label="Agente">{event.agent_name}</td>
-                    <td data-label="Responsable"><div>{event.responsible_name ?? "Sin asignar"}</div><div className="table-secondary">{event.responsible_email ?? "—"}</div></td>
-                    <td data-label="Herramienta"><code>{event.tool_name}</code></td>
-                    <td data-label="Entidad">{event.entity_key ?? "—"}</td>
-                    <td data-label="Estado"><span className={`audit-badge ${event.status === "failed" ? "delete" : event.status === "completed" ? "create" : "update"}`}>{event.status}</span></td>
-                    <td data-label="Resultado">{event.result_count ?? "—"}{event.duration_ms === null ? "" : ` · ${event.duration_ms} ms`}</td>
-                    <td data-label="Entrada"><details><summary>Ver entrada</summary><pre className="audit-json">{JSON.stringify(event.input_summary, null, 2)}</pre>{event.error_message && <p className="error-text">{event.error_message}</p>}</details></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : <div className="empty">Todavía no hay actividad de agentes.</div>}
-        </div>
-        {total > pageSize && <Pagination baseHref="/agents" page={page} pageSize={pageSize} query={requested} total={total} />}
-      </section>
     </>
   );
 }

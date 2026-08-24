@@ -84,9 +84,12 @@ function listWhere(entity: EntitySpec, options: ListRecordOptions) {
       if (!new Set(["true", "false"]).has(filter)) continue;
       values.push(filter === "true");
       conditions.push(`${identifier(field.key)} = $${values.length}`);
-    } else if (field.type === "enum" || field.type === "date" || field.type === "integer" || field.type === "decimal") {
+    } else if (field.type === "enum" || field.type === "date" || field.type === "integer" || field.type === "decimal" || field.type === "user_reference") {
+      if (field.type === "user_reference" && !UUID.test(filter)) continue;
       values.push(filter);
-      conditions.push(`CAST(${identifier(field.key)} AS text) = $${values.length}`);
+      conditions.push(field.type === "user_reference"
+        ? `${identifier(field.key)} = $${values.length}::uuid`
+        : `CAST(${identifier(field.key)} AS text) = $${values.length}`);
     } else if (field.type === "datetime") {
       values.push(`${filter}%`);
       conditions.push(`CAST(${identifier(field.key)} AS text) ILIKE $${values.length}`);
@@ -208,6 +211,22 @@ export async function relationshipOptions(entity: EntitySpec) {
   return Object.fromEntries(entries) as Record<string, Array<{ id: string; label: string }>>;
 }
 
+export async function userReferenceOptions(entity: EntitySpec) {
+  const fields = entity.fields.filter((field) => field.type === "user_reference");
+  if (!fields.length) return {};
+  const rows = await sql<{ id: string; display_name: string; email: string; active: boolean }>(
+    `SELECT id, display_name, email, active
+       FROM app_user
+      ORDER BY active DESC, display_name ASC
+      LIMIT 500`,
+  );
+  const options = rows.map((row) => ({
+    id: row.id,
+    label: `${row.display_name} · ${row.email}${row.active ? "" : " (inactivo)"}`,
+  }));
+  return Object.fromEntries(fields.map((field) => [field.key, options])) as Record<string, Array<{ id: string; label: string }>>;
+}
+
 function parseTags(field: FieldSpec, raw: unknown): string[] {
   const source = Array.isArray(raw) ? raw : typeof raw === "string" ? raw.split(",") : [];
   const tags = [...new Set(source.map((item) => {
@@ -240,6 +259,9 @@ function parseScalar(field: FieldSpec, raw: FormDataEntryValue | FormDataEntryVa
   }
   if (field.type === "decimal" && !/^-?\d+(\.\d+)?$/.test(value)) {
     throw new Error(`${field.label} debe ser un número decimal.`);
+  }
+  if (field.type === "user_reference" && !UUID.test(value)) {
+    throw new Error(`${field.label} debe referenciar una cuenta válida.`);
   }
   if (field.type === "json" || field.type === "file") {
     try {
@@ -303,6 +325,9 @@ function parseObjectScalar(field: FieldSpec, raw: unknown, mode: "create" | "upd
     } catch {
       throw new Error(`${field.label} debe contener una URL válida.`);
     }
+  }
+  if (field.type === "user_reference" && !UUID.test(value)) {
+    throw new Error(`${field.label} debe referenciar una cuenta válida.`);
   }
   return value;
 }

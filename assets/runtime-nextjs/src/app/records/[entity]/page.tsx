@@ -5,8 +5,8 @@ import { Pagination } from "@/components/pagination";
 import { RecordFilters } from "@/components/record-filters";
 import { RecordTable } from "@/components/record-table";
 import { hasPermission, requirePermission } from "@/lib/auth";
-import { recordsForClient } from "@/lib/presentation";
-import { countFilteredRecords, listRecords } from "@/lib/repository";
+import { recordsForClient, recordsWithUserReferenceLabels } from "@/lib/presentation";
+import { countFilteredRecords, listRecords, userReferenceOptions } from "@/lib/repository";
 import { getEntity, runtimeSpec } from "@/lib/spec";
 import { firstParam, parseListQuery, type RawSearchParams } from "@/lib/view-query";
 
@@ -40,6 +40,8 @@ export default async function EntityListPage({ params, searchParams }: Props) {
   ]);
   const page = Math.min(query.page, Math.max(1, Math.ceil(total / query.pageSize)));
   if (page !== query.page) records = await listRecords(entity.key, { ...query, offset: (page - 1) * query.pageSize });
+  const userOptions = await userReferenceOptions(entity);
+  const displayRecords = recordsWithUserReferenceLabels(entity, records, userOptions);
   const bulkFields = (configuredView?.bulk_edit_fields ?? [])
     .map((key) => entity.fields.find((field) => field.key === key))
     .filter((field) => field !== undefined);
@@ -60,10 +62,10 @@ export default async function EntityListPage({ params, searchParams }: Props) {
         </div>
       </div>
       {imported && /^\d+$/.test(imported) && <div className="notice success">Se importaron {imported} registros correctamente.</div>}
-      <RecordFilters entity={entity} fields={visibleFields} query={query} resetHref={`/records/${entity.key}`} />
+      <RecordFilters entity={entity} fields={visibleFields} query={query} resetHref={`/records/${entity.key}`} userReferenceOptions={userOptions} />
       {configuredView && canUpdate && bulkFields.length ? (
-        <BulkRecordTable bulkFields={bulkFields} canRead={canRead} entity={entity} fields={visibleFields} locale={runtimeSpec.app.locale} records={recordsForClient(records)} viewKey={configuredView.key} />
-      ) : <RecordTable canRead={canRead} entity={entity} fields={visibleFields} locale={runtimeSpec.app.locale} records={records} />}
+        <BulkRecordTable bulkFields={bulkFields} canRead={canRead} entity={entity} fields={visibleFields} locale={runtimeSpec.app.locale} records={recordsForClient(displayRecords)} viewKey={configuredView.key} />
+      ) : <RecordTable canRead={canRead} entity={entity} fields={visibleFields} locale={runtimeSpec.app.locale} records={displayRecords} />}
       <Pagination baseHref={`/records/${entity.key}`} page={page} pageSize={query.pageSize} query={requested} total={total} />
     </>
   );

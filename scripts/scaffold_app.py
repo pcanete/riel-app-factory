@@ -28,6 +28,7 @@ FIELD_TYPES = {
     "tags",
     "file",
     "json",
+    "user_reference",
 }
 VIEW_TYPES = {"table", "form", "detail", "dashboard", "calendar", "kanban"}
 ACTIONS = {"list", "read", "create", "update", "delete"}
@@ -109,7 +110,7 @@ def rule_literal_compatible(field: dict[str, Any], value: Any) -> bool:
         }
     if field_type == "tags":
         return isinstance(value, list) and all(isinstance(item, str) for item in value)
-    if field_type in {"text", "long_text", "date", "datetime", "email", "url", "relationship"}:
+    if field_type in {"text", "long_text", "date", "datetime", "email", "url", "relationship", "user_reference"}:
         return isinstance(value, str)
     return True
 
@@ -312,6 +313,10 @@ def validate_spec(spec: Any) -> list[str]:
             field_type = field.get("type")
             if field_type not in FIELD_TYPES:
                 errors.append(f"{field_path}.type is not supported in AppSpec v0.")
+            if field_type == "user_reference" and "default" in field:
+                errors.append(f"{field_path}.default is not supported for user references.")
+            if field_type == "user_reference" and field.get("searchable"):
+                errors.append(f"{field_path}.searchable is not supported for user references.")
             if field_type in {"enum", "tags"}:
                 options = field.get("options")
                 if field_type == "enum" and (not isinstance(options, list) or not options):
@@ -759,6 +764,7 @@ def sql_type(field: dict[str, Any]) -> str:
         "tags": "text[]",
         "file": "jsonb",
         "json": "jsonb",
+        "user_reference": "uuid",
     }[field["type"]]
 
 
@@ -893,6 +899,13 @@ def compile_sql(spec: dict[str, Any]) -> str:
             if relationship.get("required"):
                 parts.append("NOT NULL")
             columns.append(" ".join(parts))
+        for field in entity["fields"]:
+            if field["type"] != "user_reference":
+                continue
+            constraints.append(
+                f"  CONSTRAINT {sql_identifier(database_object_name('fk', entity['key'], field['key']))} "
+                f"FOREIGN KEY ({sql_identifier(field['key'])}) REFERENCES app_user(id) ON DELETE RESTRICT"
+            )
         body = columns + constraints
         lines.extend(
             [
@@ -928,6 +941,17 @@ def compile_sql(spec: dict[str, Any]) -> str:
                 ]
             )
         for field in entity["fields"]:
+            if field["type"] == "user_reference":
+                if field.get("unique"):
+                    continue
+                lines.extend(
+                    [
+                        f"CREATE INDEX {sql_identifier(database_object_name('ix', entity['key'], field['key']))}",
+                        f"  ON {sql_identifier(entity['key'])} ({sql_identifier(field['key'])});",
+                        "",
+                    ]
+                )
+                continue
             if field.get("searchable"):
                 index_name = database_object_name("ix", entity["key"], field["key"])
                 method = " USING GIN" if field["type"] == "tags" else ""
@@ -1088,7 +1112,7 @@ def compile_report(spec: dict[str, Any]) -> str:
             "",
             "## Ownership boundary",
             "",
-            "Generated structure lives in `src/generated/` and `database/generated/`. ",
+            "Generated structure lives in `src/generated/` and `database/generated/`.",
             "Client behavior belongs in `src/features/` and `database/custom/`.",
             "",
         ]

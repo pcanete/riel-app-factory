@@ -1,4 +1,4 @@
-import type { FieldSpec } from "@/lib/spec";
+import type { EntitySpec, FieldSpec } from "@/lib/spec";
 
 export function formatValue(value: unknown, locale = "es-AR") {
   if (value === null || value === undefined || value === "") return "—";
@@ -46,4 +46,24 @@ export function recordsForClient(records: Array<Record<string, unknown>>) {
   return records.map((record) => Object.fromEntries(
     Object.entries(record).map(([key, value]) => [key, value instanceof Date ? value.toISOString() : value]),
   ));
+}
+
+export function recordsWithUserReferenceLabels(
+  entity: EntitySpec,
+  records: Array<Record<string, unknown>>,
+  options: Record<string, Array<{ id: string; label: string }>>,
+) {
+  const fields = entity.fields.filter((field) => field.type === "user_reference");
+  if (!fields.length) return records;
+  const labels = Object.fromEntries(fields.map((field) => [
+    field.key,
+    new Map((options[field.key] ?? []).map((option) => [option.id, option.label])),
+  ])) as Record<string, Map<string, string>>;
+  return records.map((record) => ({
+    ...record,
+    ...Object.fromEntries(fields.map((field) => {
+      const value = record[field.key];
+      return [field.key, typeof value === "string" ? labels[field.key].get(value) ?? value : value];
+    })),
+  }));
 }

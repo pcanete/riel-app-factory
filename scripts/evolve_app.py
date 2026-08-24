@@ -105,6 +105,21 @@ def compile_tags_constraints(entity_key: str, field_spec: dict[str, Any]) -> lis
     return statements
 
 
+def compile_user_reference(entity_key: str, field_spec: dict[str, Any]) -> list[str]:
+    constraint = database_object_name("fk", entity_key, field_spec["key"])
+    index_name = database_object_name("ix", entity_key, field_spec["key"])
+    statements = [
+        f"ALTER TABLE {sql_identifier(entity_key)} ADD CONSTRAINT {sql_identifier(constraint)} "
+        f"FOREIGN KEY ({sql_identifier(field_spec['key'])}) REFERENCES app_user(id) ON DELETE RESTRICT;"
+    ]
+    if not field_spec.get("unique"):
+        statements.append(
+            f"CREATE INDEX {sql_identifier(index_name)} ON {sql_identifier(entity_key)} "
+            f"({sql_identifier(field_spec['key'])});"
+        )
+    return statements
+
+
 def compile_new_entity_table(entity: dict[str, Any]) -> list[str]:
     columns = [
         "  id uuid PRIMARY KEY DEFAULT gen_random_uuid()",
@@ -137,6 +152,13 @@ def compile_new_entity_table(entity: dict[str, Any]) -> list[str]:
         if relationship.get("required"):
             column += " NOT NULL"
         columns.append(column)
+    for field_spec in entity["fields"]:
+        if field_spec["type"] == "user_reference":
+            constraint = database_object_name("fk", entity["key"], field_spec["key"])
+            constraints.append(
+                f"  CONSTRAINT {sql_identifier(constraint)} FOREIGN KEY ({sql_identifier(field_spec['key'])}) "
+                "REFERENCES app_user(id) ON DELETE RESTRICT"
+            )
     body = columns + constraints
     return [
         f"CREATE TABLE {sql_identifier(entity['key'])} (",
@@ -356,6 +378,8 @@ def plan_existing_entity(
             plan.sql.append(compile_enum_constraint(entity_key, field_spec))
         if field_spec["type"] == "tags":
             plan.sql.extend(compile_tags_constraints(entity_key, field_spec))
+        if field_spec["type"] == "user_reference":
+            plan.sql.extend(compile_user_reference(entity_key, field_spec))
         if field_spec.get("searchable"):
             plan.sql.append(compile_search_index(entity_key, field_spec))
         plan.changes.append(f"Field added: {path}")

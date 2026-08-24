@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -102,6 +103,20 @@ EXPECTED_FILES = {
     "src/proxy.ts",
 }
 
+# Historical projects generated before the migration runner owned the transaction
+# boundary keep these immutable checksummed files. New compiler output must not add
+# more exceptions.
+LEGACY_SELF_TRANSACTION_MIGRATIONS = {
+    "database/generated/001_initial.sql",
+    "database/generated/002_add_organismos_y_campos.sql",
+    "database/custom/100_ai_foundation.sql",
+    "database/custom/110_user_management.sql",
+    "database/custom/120_clerk_authentication.sql",
+    "database/custom/130_application_settings.sql",
+    "database/custom/140_mcp_agents.sql",
+    "database/custom/150_mcp_write.sql",
+}
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -196,8 +211,8 @@ def main() -> int:
         failures.append("Server mutations do not enforce deterministic AppSpec rules.")
     audit_page_path = project / "src/app/audit/page.tsx"
     audit_page = audit_page_path.read_text(encoding="utf-8") if audit_page_path.is_file() else ""
-    if "requireAuditAccess" not in audit_page or "listAuditEvents" not in audit_page:
-        failures.append("Audit history page is missing its server-side access or data check.")
+    if "requireAuditAccess" not in audit_page or "listActivityEvents" not in audit_page:
+        failures.append("Unified activity page is missing its server-side access or data check.")
     user_actions_path = project / "src/app/users/actions.ts"
     user_actions = user_actions_path.read_text(encoding="utf-8") if user_actions_path.is_file() else ""
     for invariant in ("requireUserManagementAccess", "withTransaction", "recordAuditEvent", "SELF_PROTECTION", "LOCAL_IDENTITY"):
@@ -282,9 +297,9 @@ def main() -> int:
             failures.append(f"MCP write tool surface is missing: {invariant}.")
     agent_page_path = project / "src/app/agents/page.tsx"
     agent_page = agent_page_path.read_text(encoding="utf-8") if agent_page_path.is_file() else ""
-    for invariant in ("requireAgentManagementAccess", "listManagedAgents", "listAgentEvents"):
+    for invariant in ("requireAgentManagementAccess", "listManagedAgents", "/audit?source=agent"):
         if invariant not in agent_page:
-            failures.append(f"Agent activity page is missing: {invariant}.")
+            failures.append(f"Agent administration page is missing: {invariant}.")
     agent_actions_path = project / "src/app/agents/actions.ts"
     agent_actions = agent_actions_path.read_text(encoding="utf-8") if agent_actions_path.is_file() else ""
     for invariant in ("createAgentAction", "setAgentStatusAction", "setAgentResponsibilityAction", "requireAgentManagementAccess", "recordAuditEvent", "randomBytes"):
@@ -311,7 +326,17 @@ def main() -> int:
     for migration_directory in ("database/generated", "database/custom"):
         for migration in (project / migration_directory).glob("*.sql"):
             source = migration.read_text(encoding="utf-8")
-            if "BEGIN;" in source or "COMMIT;" in source:
+            outside_dollar_quotes = re.sub(
+                r"\$(?P<tag>[A-Za-z_][A-Za-z0-9_]*)?\$.*?\$(?P=tag)\$",
+                "",
+                source,
+                flags=re.DOTALL,
+            )
+            migration_key = f"{migration_directory}/{migration.name}"
+            if (
+                migration_key not in LEGACY_SELF_TRANSACTION_MIGRATIONS
+                and re.search(r"^(?:BEGIN|COMMIT);\s*$", outside_dollar_quotes, re.MULTILINE)
+            ):
                 failures.append(f"Migration opens its own transaction: {migration_directory}/{migration.name}.")
     production_adapter_path = project / "src/features/auth/adapter.ts"
     production_adapter = production_adapter_path.read_text(encoding="utf-8") if production_adapter_path.is_file() else ""

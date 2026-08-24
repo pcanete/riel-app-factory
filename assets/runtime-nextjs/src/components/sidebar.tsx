@@ -21,7 +21,7 @@ export async function Sidebar() {
     ...(user && canManageSettings(user) ? [{ key: "settings", label: "Configuración", href: "/settings" }] : []),
     ...(user && canManageUsers(user) ? [{ key: "users", label: "Usuarios", href: "/users" }] : []),
     ...(user && canManageAgents(user) ? [{ key: "agents", label: "Agentes", href: "/agents" }] : []),
-    ...(user && canViewAudit(user) ? [{ key: "audit", label: "Auditoría", href: "/audit" }] : []),
+    ...(user && canViewAudit(user) ? [{ key: "audit", label: "Actividad", href: "/audit" }] : []),
     ...(user && canViewRules(user) ? [{ key: "rules", label: "Reglas", href: "/rules" }] : []),
   ];
 

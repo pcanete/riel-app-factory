@@ -132,6 +132,20 @@ class EvolutionTests(unittest.TestCase):
         null_plan = plan_evolution(self.spec, proposed_with_null)
         self.assertTrue(any("needs a default or backfill plan" in item for item in null_plan.blocked))
 
+    def test_optional_unique_user_reference_is_additive(self) -> None:
+        proposed = copy.deepcopy(self.spec)
+        equipment = next(entity for entity in proposed["entities"] if entity["key"] == "equipment")
+        equipment["fields"].append({
+            "key": "usuario_id", "label": "Cuenta", "type": "user_reference", "unique": True,
+        })
+        self.assertEqual(validate_spec(proposed), [])
+        plan = plan_evolution(self.spec, proposed)
+        self.assertTrue(plan.safe_to_apply)
+        sql = "\n".join(plan.sql)
+        self.assertIn('ADD COLUMN "usuario_id" uuid UNIQUE', sql)
+        self.assertIn('FOREIGN KEY ("usuario_id") REFERENCES app_user(id) ON DELETE RESTRICT', sql)
+        self.assertNotIn('CREATE INDEX "ix_equipment_usuario_id"', sql)
+
     def test_has_many_metadata_does_not_create_a_column(self) -> None:
         proposed = copy.deepcopy(self.spec)
         equipment = next(entity for entity in proposed["entities"] if entity["key"] == "equipment")

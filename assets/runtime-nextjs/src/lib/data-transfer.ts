@@ -202,6 +202,12 @@ function scalarValue(field: FieldSpec, raw: unknown): unknown {
     if (!new Set(["http:", "https:"]).has(url.protocol)) throw new Error("La URL debe usar HTTP o HTTPS.");
     return url.toString();
   }
+  if (field.type === "user_reference") {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text)) {
+      throw new Error("Usá el UUID de una cuenta de usuario existente.");
+    }
+    return text;
+  }
   if (field.type === "enum") {
     const option = field.options?.find(
       (candidate) => candidate.key === text || candidate.label.toLocaleLowerCase("es") === text.toLocaleLowerCase("es"),

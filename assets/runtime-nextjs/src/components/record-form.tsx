@@ -6,6 +6,7 @@ type Props = {
   entity: EntitySpec;
   record?: Record<string, unknown>;
   relationshipOptions: Record<string, Array<{ id: string; label: string }>>;
+  userReferenceOptions?: Record<string, Array<{ id: string; label: string }>>;
 };
 
 function inputValue(field: FieldSpec, value: unknown) {
@@ -22,7 +23,7 @@ function inputValue(field: FieldSpec, value: unknown) {
   return String(value);
 }
 
-function FieldControl({ field, value }: { field: FieldSpec; value: unknown }) {
+function FieldControl({ field, value, options = [] }: { field: FieldSpec; value: unknown; options?: Array<{ id: string; label: string }> }) {
   if (field.type === "boolean") {
     return (
       <label className="checkbox">
@@ -36,6 +37,14 @@ function FieldControl({ field, value }: { field: FieldSpec; value: unknown }) {
       <select className="control" defaultValue={inputValue(field, value ?? field.default)} id={field.key} name={field.key} required={field.required}>
         {!field.required && <option value="">Sin valor</option>}
         {(field.options ?? []).map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}
+      </select>
+    );
+  }
+  if (field.type === "user_reference") {
+    return (
+      <select className="control" defaultValue={inputValue(field, value)} id={field.key} name={field.key} required={field.required}>
+        {!field.required && <option value="">Sin cuenta vinculada</option>}
+        {options.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
       </select>
     );
   }
@@ -80,7 +89,7 @@ function FieldControl({ field, value }: { field: FieldSpec; value: unknown }) {
   );
 }
 
-export function RecordForm({ entity, record, relationshipOptions }: Props) {
+export function RecordForm({ entity, record, relationshipOptions, userReferenceOptions = {} }: Props) {
   const isEditing = Boolean(record?.id);
   const action = isEditing
     ? updateRecordAction.bind(null, entity.key, String(record?.id))
@@ -93,7 +102,7 @@ export function RecordForm({ entity, record, relationshipOptions }: Props) {
         {entity.fields.map((field) => (
           <div className={`field ${["long_text", "json", "file", "tags"].includes(field.type) ? "full" : ""}`} key={field.key}>
             <label className="field-label" htmlFor={field.key}>{field.label}{field.required ? " *" : ""}</label>
-            <FieldControl field={field} value={record?.[field.key]} />
+            <FieldControl field={field} options={userReferenceOptions[field.key]} value={record?.[field.key]} />
             {field.help && <span className="field-help">{field.help}</span>}
             {field.type === "file" && <span className="field-help">Campo legado de metadatos JSON. Para archivos reales usá el panel de adjuntos de la ficha.</span>}
           </div>

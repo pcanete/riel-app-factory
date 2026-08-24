@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ListRecordOptions } from "@/lib/repository";
 import type { EntitySpec, FieldSpec } from "@/lib/spec";
 
-function FilterControl({ field, value }: { field: FieldSpec; value: string }) {
+function FilterControl({ field, value, options = [] }: { field: FieldSpec; value: string; options?: Array<{ id: string; label: string }> }) {
   if (field.type === "tags") {
     return <input className="control" defaultValue={value} name={`f_${field.key}`} placeholder="Etiqueta1, etiqueta2" type="text" />;
   }
@@ -13,6 +13,9 @@ function FilterControl({ field, value }: { field: FieldSpec; value: string }) {
         {(field.options ?? []).map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}
       </select>
     );
+  }
+  if (field.type === "user_reference") {
+    return <select className="control" defaultValue={value} name={`f_${field.key}`}><option value="">Todas las cuentas</option>{options.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select>;
   }
   if (field.type === "boolean") {
     return (
@@ -34,11 +37,13 @@ export function RecordFilters({
   fields,
   query,
   resetHref,
+  userReferenceOptions = {},
 }: {
   entity: EntitySpec;
   fields: FieldSpec[];
   query: ListRecordOptions & { filters: Record<string, string> };
   resetHref: string;
+  userReferenceOptions?: Record<string, Array<{ id: string; label: string }>>;
 }) {
   const searchable = entity.fields.some((field) => field.searchable);
   const sortable = [...fields, ...entity.fields.filter((field) => !fields.some((visible) => visible.key === field.key))];
@@ -64,7 +69,7 @@ export function RecordFilters({
           {fields.map((field) => (
             <label className="field" key={field.key}>
               <span className="field-label">{field.label}</span>
-              <FilterControl field={field} value={query.filters[field.key] ?? ""} />
+              <FilterControl field={field} options={userReferenceOptions[field.key]} value={query.filters[field.key] ?? ""} />
             </label>
           ))}
         </div>

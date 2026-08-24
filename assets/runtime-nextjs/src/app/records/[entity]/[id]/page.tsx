@@ -5,7 +5,7 @@ import { AttachmentPanel } from "@/components/attachment-panel";
 import { listAttachments, resolveAttachmentPolicy } from "@/lib/attachments";
 import { canAccessRelationshipOptions, hasPermission, requirePermission } from "@/lib/auth";
 import { formatFieldValue, formatValue } from "@/lib/presentation";
-import { getRecord, relationshipOptions } from "@/lib/repository";
+import { getRecord, relationshipOptions, userReferenceOptions } from "@/lib/repository";
 import { getEntity, runtimeSpec } from "@/lib/spec";
 
 export const dynamic = "force-dynamic";
@@ -25,9 +25,10 @@ export default async function RecordDetailPage({
   const canDelete = hasPermission(user, entity.key, "delete");
   const canEditRelationships = canAccessRelationshipOptions(user, entity);
   const attachmentPolicy = resolveAttachmentPolicy(entity);
-  const [record, options, attachments] = await Promise.all([
+  const [record, options, userOptions, attachments] = await Promise.all([
     getRecord(entity.key, id),
     canUpdate && canEditRelationships ? relationshipOptions(entity) : Promise.resolve({}),
+    userReferenceOptions(entity),
     attachmentPolicy ? listAttachments(entity.key, id) : Promise.resolve([]),
   ]);
   if (!record) notFound();
@@ -52,7 +53,9 @@ export default async function RecordDetailPage({
         {entity.fields.map((field) => (
           <div className="detail-item" key={field.key}>
             <div className="detail-key">{field.label}</div>
-            <div className="detail-value">{formatFieldValue(field, record[field.key], runtimeSpec.app.locale)}</div>
+            <div className="detail-value">{field.type === "user_reference"
+              ? userOptions[field.key]?.find((option) => option.id === record[field.key])?.label ?? formatFieldValue(field, record[field.key], runtimeSpec.app.locale)
+              : formatFieldValue(field, record[field.key], runtimeSpec.app.locale)}</div>
           </div>
         ))}
       </section>
@@ -72,7 +75,7 @@ export default async function RecordDetailPage({
       {canUpdate && canEditRelationships ? (
         <>
           <div style={{ height: 24 }} />
-          <RecordForm entity={entity} record={record} relationshipOptions={options} />
+          <RecordForm entity={entity} record={record} relationshipOptions={options} userReferenceOptions={userOptions} />
         </>
       ) : (
         <div className="notice readonly">Vista de sólo lectura para el rol actual.</div>

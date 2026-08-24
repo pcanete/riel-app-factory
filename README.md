@@ -12,6 +12,7 @@ Riel no es la fábrica. Riel puede coordinar agentes que consuman el endpoint MC
 - vistas de tabla, kanban, calendario y dashboard;
 - reglas deterministas de validación y mutación;
 - autenticación con Clerk y gestión de usuarios de la aplicación;
+- referencias opcionales desde registros de dominio a cuentas de usuario, sin mezclar perfiles operativos con identidad y rol;
 - un asistente de IA de sólo lectura con claves personales cifradas de OpenAI o Anthropic;
 - un endpoint MCP sin estado con credenciales por agente, lectura, escritura y eliminación opcional;
 - zonas explícitas para extender cada solución sin romper lo generado.

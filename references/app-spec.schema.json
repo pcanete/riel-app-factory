@@ -87,7 +87,7 @@
       "properties": {
         "key": {"$ref": "#/$defs/key"},
         "label": {"type": "string", "minLength": 1},
-        "type": {"enum": ["text", "long_text", "integer", "decimal", "boolean", "date", "datetime", "email", "url", "enum", "tags", "file", "json"]},
+        "type": {"enum": ["text", "long_text", "integer", "decimal", "boolean", "date", "datetime", "email", "url", "enum", "tags", "file", "json", "user_reference"]},
         "required": {"type": "boolean", "default": false},
         "unique": {"type": "boolean", "default": false},
         "searchable": {"type": "boolean", "default": false},

@@ -17,6 +17,7 @@ Build an independent operational data foundation from business language. Treat e
 - Keep the human interface intentionally sufficient for data administration; prioritize safe schema evolution and agent operability over vertical-product polish.
 - Expose agents through authenticated, role-scoped MCP tools with independent read, write, and delete scopes. External agents bring their own models; the factory does not require Riel or an embedded LLM to operate.
 - Keep agents technically distinct from users but require one active human owner per agent. Effective access is the intersection of credential scopes, agent role, and the owner's current role; audit preserves both executor and responsible person.
+- Use `user_reference` when a domain profile such as a responsible person may optionally map to one login identity. Keep business attributes on the domain entity and authentication, role, and active status on `app_user`; do not merge them.
 - Treat `tags` as a first-class multi-value field across schema, PostgreSQL arrays/GIN, forms, filters, presentation, imports, exports, MCP, and evolution; never implement only one layer.
 - Keep administrative lists paginated and mobile tables readable as labeled record cards.
 - Fail closed before a deployment applies destructive SQL to live data. Authorization must identify one migration and follow tested backup/restore, never a permanent global bypass.

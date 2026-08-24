@@ -93,6 +93,7 @@ Supported v0 field types:
 | `tags` | `text[]` + GIN | Multiple normalized labels; optional fixed `options` |
 | `file` | `jsonb` | Storage metadata, not file bytes |
 | `json` | `jsonb` | Escape hatch; prefer explicit fields |
+| `user_reference` | `uuid` + FK to `app_user` | Optional link from a domain record to one login identity |
 
 Field options:
 
@@ -100,6 +101,8 @@ Field options:
 - `default`: scalar compatible with the type.
 - `options`: array of `{key,label}` for enum fields and optional closed vocabularies for tags.
 - `help`: user-facing explanation.
+
+`user_reference` keeps domain responsibility separate from authentication. For example, a `responsable` entity may have an optional, unique `usuario_id` field of this type: the record retains cargo, area, and business metadata while `app_user` retains login, role, and active status. The runtime renders a user selector, validates UUID input in forms/imports/MCP, and PostgreSQL enforces the reference with `ON DELETE RESTRICT`. Defaults and full-text search are intentionally unsupported.
 
 `tags` accepts up to 50 distinct labels of 48 characters each. The runtime normalizes them to lowercase, forms collect every selected checkbox, filters require all requested labels, and CSV/XLSX use comma-separated values. A required tags field must contain at least one label. Removing an allowed tag option is a reviewed data migration because existing records may still use it.
 
