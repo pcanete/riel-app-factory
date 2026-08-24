@@ -6,6 +6,7 @@ import { listAttachments, resolveAttachmentPolicy } from "@/lib/attachments";
 import { canAccessRelationshipOptions, hasPermission, requirePermission } from "@/lib/auth";
 import { formatFieldValue, formatValue } from "@/lib/presentation";
 import { getRecord, relationshipOptions, userReferenceOptions } from "@/lib/repository";
+import { recordAccessForUser } from "@/lib/record-access";
 import { getEntity, runtimeSpec } from "@/lib/spec";
 
 export const dynamic = "force-dynamic";
@@ -21,17 +22,18 @@ export default async function RecordDetailPage({
   const entity = getEntity(entityKey);
   if (!entity) notFound();
   const user = await requirePermission(entity.key, "read");
+  const access = recordAccessForUser(user);
   const canUpdate = hasPermission(user, entity.key, "update");
   const canDelete = hasPermission(user, entity.key, "delete");
   const canEditRelationships = canAccessRelationshipOptions(user, entity);
   const attachmentPolicy = resolveAttachmentPolicy(entity);
-  const [record, options, userOptions, attachments] = await Promise.all([
-    getRecord(entity.key, id),
-    canUpdate && canEditRelationships ? relationshipOptions(entity) : Promise.resolve({}),
-    userReferenceOptions(entity),
+  const record = await getRecord(entity.key, id, undefined, false, access);
+  if (!record) notFound();
+  const [options, userOptions, attachments] = await Promise.all([
+    canUpdate && canEditRelationships ? relationshipOptions(entity, access) : Promise.resolve({}),
+    userReferenceOptions(entity, access),
     attachmentPolicy ? listAttachments(entity.key, id) : Promise.resolve([]),
   ]);
-  if (!record) notFound();
   const deleteAction = deleteRecordAction.bind(null, entity.key, id);
 
   return (

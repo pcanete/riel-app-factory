@@ -93,6 +93,7 @@ Supported v0 field types:
 | `tags` | `text[]` + GIN | Multiple normalized labels; optional fixed `options` |
 | `file` | `jsonb` | Storage metadata, not file bytes |
 | `json` | `jsonb` | Escape hatch; prefer explicit fields |
+| `user_reference` | `uuid` + FK to `app_user` | Direct link to an application user |
 | `user_reference` | `uuid` + FK to `app_user` | Optional link from a domain record to one login identity |
 
 Field options:
@@ -120,6 +121,24 @@ Entities may opt into universal record attachments:
 ```
 
 Attachments are stored outside the entity row, inherit the entity's `read` and `update` permissions, and are audited. The built-in PostgreSQL adapter is intentionally limited to 4 MB per file; large-file or direct-upload requirements belong behind the client-owned storage adapter.
+
+Entities may also opt into record-level access through a direct `user_reference` owner field:
+
+```json
+{
+  "record_access": {
+    "owner_field": "owner_user_id",
+    "roles": {
+      "admin": "all",
+      "operator": "own"
+    }
+  }
+}
+```
+
+`record_access` is absent by default and adds no restriction when omitted. When present, every role declared in the entity permission map must declare either `all` or `own`. `own` limits lists, direct reads, aggregates, exports, attachments, mutations, views, and MCP tools to rows whose owner field equals the current application user. Creates by an `own` principal are assigned to that user server-side, and the owner cannot be transferred outside that scope. Agents use the most restrictive intersection of their AppSpec role and their responsible human's role. The runtime fails closed when a protected repository call omits its actor context.
+
+This first primitive intentionally does not model teams, hierarchical areas, exception ACLs, relationship traversal, sharing, or workflows. Those remain client features until repeated real cases justify a broader neutral primitive.
 
 Relationships support:
 
@@ -235,6 +254,7 @@ Allowed statuses are `confirmed`, `assumption`, and `unresolved`.
 - Permission roles exist.
 - View fields exist on the referenced entity.
 - Attachment policies are bounded and contain valid MIME patterns.
+- Record-level policies reference a direct `user_reference` field and explicitly cover every entity permission role.
 - Kanban, calendar, bulk-edit, sorting, and dashboard widget fields are type-compatible.
 - Generated SQL uses only validated identifiers.
 - Output never overwrites a non-empty project directory.

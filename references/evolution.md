@@ -51,11 +51,13 @@ It does not overwrite `src/features/`, `src/components/custom/`, `database/custo
 - add a search index or relax `NOT NULL`;
 - change field defaults;
 - change labels, help, permissions, attachments, views, rules, and decisions as runtime metadata.
+- add optional `record_access` metadata or tighten a role from `all` to `own` after reviewing ownership coverage; no policy is activated implicitly.
 
 `has_many` relationships are inverse metadata and do not create database columns.
 
 ## Changes that stop automatically
 
+- remove `record_access`, change its owner field, or broaden an existing role from `own` to `all`;
 - remove or rename an entity, field, or stored relationship;
 - change a field type;
 - remove an enum value;

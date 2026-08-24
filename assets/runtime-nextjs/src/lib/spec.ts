@@ -44,6 +44,11 @@ export type AttachmentPolicy = {
   allowed_types?: string[];
 };
 
+export type RecordAccessPolicy = {
+  owner_field: string;
+  roles: Record<string, "all" | "own">;
+};
+
 export type EntitySpec = {
   key: string;
   label: string;
@@ -53,6 +58,7 @@ export type EntitySpec = {
   fields: FieldSpec[];
   relationships?: RelationshipSpec[];
   attachments?: AttachmentPolicy;
+  record_access?: RecordAccessPolicy;
   permissions: Record<string, Array<"list" | "read" | "create" | "update" | "delete">>;
 };
 

@@ -1,6 +1,7 @@
 import { requirePermission } from "@/lib/auth";
 import { buildCsv, buildXlsx, MAX_EXPORT_ROWS } from "@/lib/data-transfer";
 import { listRecordsForExport } from "@/lib/repository";
+import { recordAccessForUser } from "@/lib/record-access";
 import { requireEntity } from "@/lib/spec";
 
 export const dynamic = "force-dynamic";
@@ -12,8 +13,8 @@ export async function GET(request: Request, context: { params: Promise<{ entity:
   const format = url.searchParams.get("format") ?? "xlsx";
   const template = url.searchParams.get("template") === "1";
   if (format !== "csv" && format !== "xlsx") return new Response("Formato no admitido.", { status: 400 });
-  await requirePermission(entity.key, template ? "create" : "list");
-  const records = template ? [] : await listRecordsForExport(entity.key, MAX_EXPORT_ROWS + 1);
+  const user = await requirePermission(entity.key, template ? "create" : "list");
+  const records = template ? [] : await listRecordsForExport(entity.key, MAX_EXPORT_ROWS + 1, recordAccessForUser(user));
   if (records.length > MAX_EXPORT_ROWS) {
     return new Response(`La exportación supera el límite de ${MAX_EXPORT_ROWS} registros. Aplicá un reporte específico.`, { status: 413 });
   }

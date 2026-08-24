@@ -21,6 +21,7 @@ from scaffold_app import (
 
 
 EXAMPLE = Path(__file__).resolve().parent.parent / "references" / "example-maintenance.app-spec.json"
+RECORD_ACCESS_EXAMPLE = Path(__file__).resolve().parent.parent / "references" / "example-record-access.app-spec.json"
 
 
 class ScaffoldTests(unittest.TestCase):
@@ -30,6 +31,13 @@ class ScaffoldTests(unittest.TestCase):
 
     def test_example_is_valid(self) -> None:
         self.assertEqual(validate_spec(self.spec), [])
+
+    def test_record_access_example_is_valid_and_compiles_owner_foreign_key(self) -> None:
+        spec = json.loads(RECORD_ACCESS_EXAMPLE.read_text(encoding="utf-8"))
+        self.assertEqual(validate_spec(spec), [])
+        sql = compile_sql(spec)
+        self.assertIn('"owner_user_id" uuid NOT NULL', sql)
+        self.assertIn('FOREIGN KEY ("owner_user_id") REFERENCES app_user(id) ON DELETE RESTRICT', sql)
 
     def test_duplicate_field_is_rejected(self) -> None:
         spec = copy.deepcopy(self.spec)
@@ -115,6 +123,39 @@ class ScaffoldTests(unittest.TestCase):
         errors = validate_spec(spec)
         self.assertTrue(any("default is not supported" in error for error in errors))
         self.assertTrue(any("searchable is not supported" in error for error in errors))
+
+    def test_optional_record_access_requires_direct_user_owner_and_complete_roles(self) -> None:
+        spec = copy.deepcopy(self.spec)
+        equipment = next(entity for entity in spec["entities"] if entity["key"] == "equipment")
+        equipment["fields"].append({
+            "key": "owner_user_id", "label": "Responsable", "type": "user_reference",
+        })
+        equipment["record_access"] = {
+            "owner_field": "owner_user_id",
+            "roles": {role: ("all" if role == "admin" else "own") for role in equipment["permissions"]},
+        }
+        self.assertEqual(validate_spec(spec), [])
+        report = compile_report(spec)
+        self.assertIn("Entities with record-level access: 1", report)
+        self.assertIn("Optional record-level access is enforced", report)
+
+        missing = copy.deepcopy(spec)
+        missing_equipment = next(entity for entity in missing["entities"] if entity["key"] == "equipment")
+        missing_equipment["record_access"]["roles"].pop("technician")
+        errors = validate_spec(missing)
+        self.assertTrue(any("must declare scopes for: technician" in error for error in errors))
+
+        wrong_field = copy.deepcopy(spec)
+        wrong_equipment = next(entity for entity in wrong_field["entities"] if entity["key"] == "equipment")
+        wrong_equipment["record_access"]["owner_field"] = "name"
+        errors = validate_spec(wrong_field)
+        self.assertTrue(any("must reference a direct user_reference field" in error for error in errors))
+
+        invalid_scope = copy.deepcopy(spec)
+        invalid_equipment = next(entity for entity in invalid_scope["entities"] if entity["key"] == "equipment")
+        invalid_equipment["record_access"]["roles"]["technician"] = "team"
+        errors = validate_spec(invalid_scope)
+        self.assertTrue(any("must be 'all' or 'own'" in error for error in errors))
 
     def test_freeform_rule_expression_is_rejected(self) -> None:
         spec = copy.deepcopy(self.spec)

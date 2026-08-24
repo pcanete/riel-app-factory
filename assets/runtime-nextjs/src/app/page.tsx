@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { hasPermission, requireUser } from "@/lib/auth";
 import { countRecords } from "@/lib/repository";
+import { recordAccessForUser } from "@/lib/record-access";
 import { localPreviewAuthEnabled } from "@/lib/runtime-access";
 import { runtimeSpec } from "@/lib/spec";
 
@@ -8,11 +9,12 @@ export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const user = await requireUser();
+  const access = recordAccessForUser(user);
   const visibleEntities = runtimeSpec.entities.filter((entity) => hasPermission(user, entity.key, "list"));
   const counts = await Promise.all(
     visibleEntities.map(async (entity) => ({
       entity,
-      count: await countRecords(entity.key),
+      count: await countRecords(entity.key, access),
     })),
   );
 

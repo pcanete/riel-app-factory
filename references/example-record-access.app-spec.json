@@ -1,0 +1,89 @@
+{
+  "version": "0.1",
+  "app": {
+    "key": "registro_privado",
+    "name": "Registro privado",
+    "description": "Ejemplo mínimo de seguridad opcional por registro",
+    "locale": "es-AR",
+    "timezone": "America/Argentina/Buenos_Aires"
+  },
+  "roles": [
+    {
+      "key": "admin",
+      "label": "Administrador",
+      "capabilities": ["manage_users", "manage_agents", "view_audit"]
+    },
+    {
+      "key": "operator",
+      "label": "Operador",
+      "capabilities": []
+    }
+  ],
+  "entities": [
+    {
+      "key": "document",
+      "label": "Documento",
+      "label_plural": "Documentos",
+      "description": "Cada operador accede solamente a sus propios documentos",
+      "title_field": "title",
+      "fields": [
+        {
+          "key": "title",
+          "label": "Título",
+          "type": "text",
+          "required": true,
+          "searchable": true
+        },
+        {
+          "key": "owner_user_id",
+          "label": "Responsable",
+          "type": "user_reference",
+          "required": true
+        }
+      ],
+      "attachments": {
+        "enabled": true,
+        "max_files": 5,
+        "max_size_mb": 3,
+        "allowed_types": ["application/pdf"]
+      },
+      "record_access": {
+        "owner_field": "owner_user_id",
+        "roles": {
+          "admin": "all",
+          "operator": "own"
+        }
+      },
+      "permissions": {
+        "admin": ["list", "read", "create", "update", "delete"],
+        "operator": ["list", "read", "create", "update"]
+      }
+    }
+  ],
+  "views": [
+    {
+      "key": "documents",
+      "label": "Documentos",
+      "type": "table",
+      "entity": "document",
+      "navigation": true,
+      "fields": ["title", "owner_user_id"],
+      "default_sort": {
+        "field": "title",
+        "direction": "asc"
+      }
+    }
+  ],
+  "decisions": [
+    {
+      "status": "assumption",
+      "topic": "record_ownership",
+      "statement": "Los operadores son propietarios directos de sus documentos y los administradores conservan alcance total"
+    },
+    {
+      "status": "assumption",
+      "topic": "workflows",
+      "statement": "Este ejemplo no define aprobaciones; cualquier workflow se implementa como una extensión específica"
+    }
+  ]
+}

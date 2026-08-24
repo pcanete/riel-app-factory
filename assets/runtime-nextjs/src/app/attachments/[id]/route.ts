@@ -1,5 +1,7 @@
 import { getCurrentUser, hasPermission } from "@/lib/auth";
-import { getAttachmentContent } from "@/lib/attachments";
+import { getAttachmentContent, getAttachmentMetadata } from "@/lib/attachments";
+import { recordAccessForUser } from "@/lib/record-access";
+import { getRecord } from "@/lib/repository";
 
 export const dynamic = "force-dynamic";
 
@@ -10,10 +12,14 @@ function fallbackFileName(value: string) {
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [user, attachment] = await Promise.all([getCurrentUser(), getAttachmentContent(id)]);
-  if (!attachment) return new Response("Archivo no encontrado", { status: 404 });
+  const [user, metadata] = await Promise.all([getCurrentUser(), getAttachmentMetadata(id)]);
+  if (!metadata) return new Response("Archivo no encontrado", { status: 404 });
   if (!user) return new Response("Autenticación requerida", { status: 401 });
-  if (!hasPermission(user, attachment.entity_key, "read")) return new Response("Acceso denegado", { status: 403 });
+  if (!hasPermission(user, metadata.entity_key, "read")) return new Response("Archivo no encontrado", { status: 404 });
+  const record = await getRecord(metadata.entity_key, metadata.record_id, undefined, false, recordAccessForUser(user));
+  if (!record) return new Response("Archivo no encontrado", { status: 404 });
+  const attachment = await getAttachmentContent(id);
+  if (!attachment) return new Response("Archivo no encontrado", { status: 404 });
 
   const encodedName = encodeURIComponent(attachment.original_name);
   return new Response(new Uint8Array(attachment.content), {

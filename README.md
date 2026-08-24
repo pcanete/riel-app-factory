@@ -13,6 +13,7 @@ Riel no es la fábrica. Riel puede coordinar agentes que consuman el endpoint MC
 - reglas deterministas de validación y mutación;
 - autenticación con Clerk y gestión de usuarios de la aplicación;
 - referencias opcionales desde registros de dominio a cuentas de usuario, sin mezclar perfiles operativos con identidad y rol;
+- seguridad por registro opcional basada en una cuenta responsable, aplicada de forma uniforme a la interfaz, vistas, archivos, importaciones, exportaciones y MCP;
 - un asistente de IA de sólo lectura con claves personales cifradas de OpenAI o Anthropic;
 - un endpoint MCP sin estado con credenciales por agente, lectura, escritura y eliminación opcional;
 - zonas explícitas para extender cada solución sin romper lo generado.
@@ -56,6 +57,12 @@ python scripts/evolve_app.py \
 Después de revisar el plan, aplicá cambios aditivos seguros con `--apply` y un nombre de migración descriptivo. El comando crea la siguiente migración PostgreSQL inmutable y actualiza únicamente archivos propiedad de la fábrica. Las extensiones del cliente y sus migraciones personalizadas no se sobrescriben. Renombrar, eliminar, cambiar tipos, quitar opciones de un enum o introducir cambios que necesiten backfill detiene el proceso para revisión explícita.
 
 Consultá el [contrato completo de evolución](references/evolution.md).
+
+### Seguridad por registro, sólo cuando el caso la necesita
+
+Una entidad puede declarar `record_access` en AppSpec y definir, para cada rol, alcance `all` o `own`. El alcance `own` hace que una persona vea y opere exclusivamente los registros cuyo campo `user_reference` de propiedad apunta a su cuenta. Un agente hereda además el alcance de su responsable humano; prevalece siempre la restricción más fuerte.
+
+La opción no se activa implícitamente: si `record_access` no existe, la aplicación conserva los permisos por entidad actuales. App Factory tampoco impone aprobaciones ni estados de workflow. Esos procesos pertenecen a `src/features/` y se diseñan para cada implementación real. Hay un ejemplo mínimo en [`references/example-record-access.app-spec.json`](references/example-record-access.app-spec.json).
 
 ## Acceso de agentes mediante MCP
 
@@ -107,6 +114,7 @@ Leé el [procedimiento de producción en Vercel](references/deployment-vercel.md
 - `src/features/`, `src/components/custom/` y `database/custom/` pertenecen a la aplicación.
 - Regenerar nunca debe sobrescribir comportamiento específico del cliente.
 - Integraciones, aprobaciones, escrituras externas y cálculos propios del dominio requieren adaptadores revisados.
+- Los workflows son extensiones del cliente: la base aporta identidad, roles, auditoría y seguridad por registro opcional, pero no presume circuitos de aprobación universales.
 
 Consultá [AppSpec v0](references/app-spec-v0.md) y el [contrato de extensiones](references/extension-contract.md).
 

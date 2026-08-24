@@ -7,6 +7,7 @@ import { RecordTable } from "@/components/record-table";
 import { hasPermission, requirePermission } from "@/lib/auth";
 import { recordsForClient, recordsWithUserReferenceLabels } from "@/lib/presentation";
 import { countFilteredRecords, listRecords, userReferenceOptions } from "@/lib/repository";
+import { recordAccessForUser } from "@/lib/record-access";
 import { getEntity, runtimeSpec } from "@/lib/spec";
 import { firstParam, parseListQuery, type RawSearchParams } from "@/lib/view-query";
 
@@ -22,6 +23,7 @@ export default async function EntityListPage({ params, searchParams }: Props) {
   const entity = getEntity(entityKey);
   if (!entity) notFound();
   const user = await requirePermission(entity.key, "list");
+  const access = recordAccessForUser(user);
   const canCreate = hasPermission(user, entity.key, "create");
   const canRead = hasPermission(user, entity.key, "read");
   const canUpdate = hasPermission(user, entity.key, "update");
@@ -35,12 +37,12 @@ export default async function EntityListPage({ params, searchParams }: Props) {
   const visibleFields = visibleKeys.map((key) => entity.fields.find((field) => field.key === key)).filter((field) => field !== undefined);
   const query = parseListQuery(entity, requested, configuredView);
   let [records, total] = await Promise.all([
-    listRecords(entity.key, query),
-    countFilteredRecords(entity.key, query),
+    listRecords(entity.key, { ...query, access }),
+    countFilteredRecords(entity.key, { ...query, access }),
   ]);
   const page = Math.min(query.page, Math.max(1, Math.ceil(total / query.pageSize)));
-  if (page !== query.page) records = await listRecords(entity.key, { ...query, offset: (page - 1) * query.pageSize });
-  const userOptions = await userReferenceOptions(entity);
+  if (page !== query.page) records = await listRecords(entity.key, { ...query, offset: (page - 1) * query.pageSize, access });
+  const userOptions = await userReferenceOptions(entity, access);
   const displayRecords = recordsWithUserReferenceLabels(entity, records, userOptions);
   const bulkFields = (configuredView?.bulk_edit_fields ?? [])
     .map((key) => entity.fields.find((field) => field.key === key))

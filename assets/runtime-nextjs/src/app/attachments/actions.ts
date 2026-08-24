@@ -15,6 +15,7 @@ import {
 import { requirePermission } from "@/lib/auth";
 import { withTransaction } from "@/lib/db";
 import { getRecord } from "@/lib/repository";
+import { recordAccessForUser } from "@/lib/record-access";
 import { requireEntity } from "@/lib/spec";
 
 function detailPath(entityKey: string, recordId: string) {
@@ -34,6 +35,7 @@ function cleanFileName(value: string) {
 
 export async function uploadAttachmentAction(entityKey: string, recordId: string, formData: FormData) {
   const user = await requirePermission(entityKey, "update");
+  const access = recordAccessForUser(user);
   const entity = requireEntity(entityKey);
   const policy = resolveAttachmentPolicy(entity);
   let errorMessage: string | null = null;
@@ -54,7 +56,7 @@ export async function uploadAttachmentAction(entityKey: string, recordId: string
     const sha256 = createHash("sha256").update(content).digest("hex");
 
     await withTransaction(async (client) => {
-      const record = await getRecord(entityKey, recordId, client);
+      const record = await getRecord(entityKey, recordId, client, false, access);
       if (!record) throw new Error("El registro al que querés adjuntar el archivo ya no existe.");
       await lockAttachmentSet(client, entityKey, recordId);
       const currentCount = await countAttachments(client, entityKey, recordId);
@@ -88,12 +90,15 @@ export async function uploadAttachmentAction(entityKey: string, recordId: string
 
 export async function deleteAttachmentAction(entityKey: string, recordId: string, attachmentId: string) {
   const user = await requirePermission(entityKey, "update");
+  const access = recordAccessForUser(user);
   const entity = requireEntity(entityKey);
   let errorMessage: string | null = null;
 
   try {
     if (!resolveAttachmentPolicy(entity)) throw new Error("Esta entidad no admite archivos adjuntos.");
     await withTransaction(async (client) => {
+      const record = await getRecord(entityKey, recordId, client, false, access);
+      if (!record) throw new Error("El registro no existe o queda fuera de tu alcance.");
       await lockAttachmentSet(client, entityKey, recordId);
       const deleted = await deleteAttachment(client, entityKey, recordId, attachmentId);
       if (!deleted) throw new Error("El archivo ya no existe o no pertenece a este registro.");

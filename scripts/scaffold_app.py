@@ -447,6 +447,36 @@ def validate_spec(spec: Any) -> list[str]:
                 elif len(actions) != len(set(actions)):
                     errors.append(f"{path}.permissions.{role} contains duplicate actions.")
 
+        record_access = entity.get("record_access")
+        if record_access is not None:
+            access_path = f"{path}.record_access"
+            if not isinstance(record_access, dict):
+                errors.append(f"{access_path} must be an object.")
+            else:
+                unknown_keys = sorted(set(record_access) - {"owner_field", "roles"})
+                for key in unknown_keys:
+                    errors.append(f"{access_path} contains unknown property '{key}'.")
+                owner_field = record_access.get("owner_field")
+                owner_spec = entity_field_specs.get(entity_key, {}).get(owner_field)
+                if owner_spec is None or owner_spec.get("type") != "user_reference":
+                    errors.append(f"{access_path}.owner_field must reference a direct user_reference field.")
+                access_roles = record_access.get("roles")
+                if not isinstance(access_roles, dict) or not access_roles:
+                    errors.append(f"{access_path}.roles must be a non-empty object.")
+                else:
+                    for role, scope in access_roles.items():
+                        if role not in role_keys:
+                            errors.append(f"{access_path}.roles references unknown role '{role}'.")
+                        if scope not in {"all", "own"}:
+                            errors.append(f"{access_path}.roles.{role} must be 'all' or 'own'.")
+                    permission_roles = set(permissions) if isinstance(permissions, dict) else set()
+                    missing_roles = sorted(permission_roles - set(access_roles))
+                    extra_roles = sorted(set(access_roles) - permission_roles)
+                    if missing_roles:
+                        errors.append(f"{access_path}.roles must declare scopes for: {', '.join(missing_roles)}.")
+                    if extra_roles:
+                        errors.append(f"{access_path}.roles cannot add roles absent from permissions: {', '.join(extra_roles)}.")
+
     for key in duplicates(entity_keys):
         errors.append(f"Duplicate entity key: {key}.")
     entity_key_set = set(entity_keys)
@@ -1023,6 +1053,7 @@ def compile_report(spec: dict[str, Any]) -> str:
     attachment_entities = [
         entity for entity in spec["entities"] if entity.get("attachments", {}).get("enabled")
     ]
+    record_access_entities = [entity for entity in spec["entities"] if entity.get("record_access")]
     capabilities = declared_capabilities(spec)
     if capabilities is None:
         capability_note = "- Administrative access still uses the legacy all-entity-permissions fallback."
@@ -1046,6 +1077,7 @@ def compile_report(spec: dict[str, Any]) -> str:
         f"- Executable deterministic rules: {len(spec.get('rules', []))}",
         f"- File fields: {file_count}",
         f"- Entities with record attachments: {len(attachment_entities)}",
+        f"- Entities with record-level access: {len(record_access_entities)}",
         "",
         "## Security included",
         "",
@@ -1060,6 +1092,7 @@ def compile_report(spec: dict[str, Any]) -> str:
         "- CSV/XLSX imports are size-limited, prevalidated, staged per user, committed atomically, and audited per record.",
         "- AppSpec rules use a validated expression tree with only deterministic set/block actions; arbitrary code and side effects are rejected.",
         "- Record attachments inherit entity permissions, are size/type limited, stored transactionally in PostgreSQL, and audited.",
+        "- Optional record-level access is enforced by the central repository across lists, direct reads, aggregates, exports, attachments, mutations, views, and MCP.",
         "- Named table, kanban, calendar, and dashboard views execute only validated metadata and identifiers.",
         "- Pagination and opt-in bulk, kanban, and calendar mutations reuse server permissions, deterministic rules, transactions, and audit.",
         "- The runtime provides namespaced JSON application options for reusable module and presentation settings without adding domain-specific tables.",
@@ -1085,6 +1118,8 @@ def compile_report(spec: dict[str, Any]) -> str:
     if attachment_entities:
         lines.append("- Confirm allowed MIME types, maximum file count, retention, and backup policy with the client.")
         lines.append("- Use a reviewed direct-upload/object-storage adapter when files exceed 4 MB or database storage is unsuitable.")
+    if record_access_entities:
+        lines.append("- Verify owner coverage, every role scope, cross-user isolation, exports, attachments, views, and MCP before production.")
     lines.extend(["", "## Local preview limitations", ""])
     lines.append("- Bulk editing is limited to explicitly configured enum/boolean fields and at most 100 selected records per atomic operation.")
     lines.append("- Kanban and calendar mutations are disabled unless the AppSpec explicitly enables them; richer scheduling semantics remain client features.")

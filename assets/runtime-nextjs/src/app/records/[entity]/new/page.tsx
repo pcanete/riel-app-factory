@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { RecordForm } from "@/components/record-form";
 import { canAccessRelationshipOptions, requirePermission } from "@/lib/auth";
 import { relationshipOptions, userReferenceOptions } from "@/lib/repository";
+import { recordAccessForUser } from "@/lib/record-access";
 import { getEntity } from "@/lib/spec";
 
 export const dynamic = "force-dynamic";
@@ -17,8 +18,9 @@ export default async function NewRecordPage({
   const entity = getEntity(entityKey);
   if (!entity) notFound();
   const user = await requirePermission(entity.key, "create");
+  const access = recordAccessForUser(user);
   if (!canAccessRelationshipOptions(user, entity)) return notFound();
-  const [options, userOptions] = await Promise.all([relationshipOptions(entity), userReferenceOptions(entity)]);
+  const [options, userOptions] = await Promise.all([relationshipOptions(entity, access), userReferenceOptions(entity, access)]);
 
   return (
     <>

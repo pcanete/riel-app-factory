@@ -5,6 +5,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { requirePermission } from "@/lib/auth";
 import { withTransaction } from "@/lib/db";
 import { getRecord, updateRecord } from "@/lib/repository";
+import { recordAccessForUser, type RecordAccessContext } from "@/lib/record-access";
 import { revalidateAfterWrite } from "@/lib/revalidation";
 import { applyRules, RuleBlockedError } from "@/lib/rules";
 import { type FieldSpec, requireEntity, requireView, runtimeSpec } from "@/lib/spec";
@@ -47,12 +48,13 @@ async function updateOne(input: {
   recordId: string;
   values: Record<string, unknown>;
   source: Record<string, unknown>;
+  access: RecordAccessContext;
 }) {
-  const before = await getRecord(input.entityKey, input.recordId, input.client, true);
+  const before = await getRecord(input.entityKey, input.recordId, input.client, true, input.access);
   if (!before) throw new Error("El registro ya no existe.");
   const evaluated = applyRules({ entityKey: input.entityKey, event: "before_update", values: input.values, before });
-  await updateRecord(input.entityKey, input.recordId, evaluated.values, input.client);
-  const after = await getRecord(input.entityKey, input.recordId, input.client);
+  await updateRecord(input.entityKey, input.recordId, evaluated.values, input.client, input.access);
+  const after = await getRecord(input.entityKey, input.recordId, input.client, false, input.access);
   await recordAuditEvent(input.client, {
     actorId: input.actorId,
     entityKey: input.entityKey,
@@ -71,6 +73,7 @@ export async function bulkSetRecordsAction(
   const view = requireView(viewKey);
   if (view.type !== "table" || !view.entity) return { ok: false, error: "La vista no admite edición masiva." };
   const user = await requirePermission(view.entity, "update");
+  const access = recordAccessForUser(user);
   const entity = requireEntity(view.entity);
   const allowed = new Set(view.bulk_edit_fields ?? []);
   const field = entity.fields.find((candidate) => candidate.key === fieldKey && allowed.has(candidate.key) && ["enum", "boolean"].includes(candidate.type));
@@ -89,6 +92,7 @@ export async function bulkSetRecordsAction(
           recordId,
           values: { [field.key]: value },
           source: { kind: "bulk", view: view.key, field: field.key },
+          access,
         });
       }
     });
@@ -106,6 +110,7 @@ export async function moveRecordAction(viewKey: string, recordId: string, target
   }
   if (!UUID.test(recordId)) return { ok: false, error: "La selección contiene identificadores inválidos." };
   const user = await requirePermission(view.entity, "update");
+  const access = recordAccessForUser(user);
   const entity = requireEntity(view.entity);
   const field = entity.fields.find((candidate) => candidate.key === view.group_by && candidate.type === "enum");
   if (!field?.options?.some((option) => option.key === targetKey)) return { ok: false, error: "La columna de destino no es válida." };
@@ -117,6 +122,7 @@ export async function moveRecordAction(viewKey: string, recordId: string, target
       recordId,
       values: { [field.key]: targetKey },
       source: { kind: "kanban", view: view.key, field: field.key },
+      access,
     }));
   } catch (error) {
     return resultError(error);
@@ -187,6 +193,7 @@ export async function rescheduleRecordAction(viewKey: string, recordId: string, 
   if (!UUID.test(recordId)) return { ok: false, error: "La selección contiene identificadores inválidos." };
   if (!validDateKey(targetDate)) return { ok: false, error: "La fecha de destino no es válida." };
   const user = await requirePermission(view.entity, "update");
+  const access = recordAccessForUser(user);
   const entity = requireEntity(view.entity);
   const startField = entity.fields.find((candidate) => candidate.key === view.date_field && ["date", "datetime"].includes(candidate.type));
   const endField = view.end_date_field
@@ -196,7 +203,7 @@ export async function rescheduleRecordAction(viewKey: string, recordId: string, 
   const timezone = runtimeSpec.app.timezone ?? "UTC";
   try {
     await withTransaction(async (client) => {
-      const before = await getRecord(entity.key, recordId, client, true);
+      const before = await getRecord(entity.key, recordId, client, true, access);
       if (!before) throw new Error("El registro ya no existe.");
       if (!before[startField.key]) throw new Error("Fecha inválida.");
       const values: Record<string, unknown> = {
@@ -208,8 +215,8 @@ export async function rescheduleRecordAction(viewKey: string, recordId: string, 
         values[endField.key] = rescheduledValue(endField, before[endField.key], shiftedEnd, timezone);
       }
       const evaluated = applyRules({ entityKey: entity.key, event: "before_update", values, before });
-      await updateRecord(entity.key, recordId, evaluated.values, client);
-      const after = await getRecord(entity.key, recordId, client);
+      await updateRecord(entity.key, recordId, evaluated.values, client, access);
+      const after = await getRecord(entity.key, recordId, client, false, access);
       await recordAuditEvent(client, {
         actorId: user.id,
         entityKey: entity.key,

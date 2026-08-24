@@ -79,6 +79,7 @@ EXPECTED_FILES = {
     "src/features/users/store.ts",
     "src/features/mcp/access.ts",
     "src/features/mcp/admin.ts",
+    "src/lib/record-access.ts",
     "src/features/mcp/mutations.ts",
     "src/features/mcp/server.ts",
     "src/features/mcp/store.ts",
@@ -309,6 +310,20 @@ def main() -> int:
     mcp_access = mcp_access_path.read_text(encoding="utf-8") if mcp_access_path.is_file() else ""
     if "ownerRoleKey" not in mcp_access:
         failures.append("Agent permissions are not intersected with the responsible user's role.")
+    record_access_path = project / "src/lib/record-access.ts"
+    record_access = record_access_path.read_text(encoding="utf-8") if record_access_path.is_file() else ""
+    for invariant in ("recordAccessForUser", "recordAccessForAgent", "effectiveRecordScope", "prepareRecordCreate", "assertRecordOwnershipChange"):
+        if invariant not in record_access:
+            failures.append(f"Optional record access runtime is missing: {invariant}.")
+    if not (project / "scripts/test-record-access.mjs").is_file():
+        failures.append("Optional record access policy test is missing.")
+    repository_path = project / "src/lib/repository.ts"
+    repository = repository_path.read_text(encoding="utf-8") if repository_path.is_file() else ""
+    for invariant in ("recordAccessCondition", "prepareRecordCreate", "assertRecordOwnershipChange", "El registro no existe o queda fuera de tu alcance"):
+        if invariant not in repository:
+            failures.append(f"Central repository record enforcement is missing: {invariant}.")
+    if "recordAccessForAgent" not in mcp_server:
+        failures.append("MCP tools do not carry the responsible human's record-level access context.")
     mcp_store_path = project / "src/features/mcp/store.ts"
     mcp_store = mcp_store_path.read_text(encoding="utf-8") if mcp_store_path.is_file() else ""
     for invariant in ("ownerUserId", "owner.active = TRUE", "responsible_user_id"):

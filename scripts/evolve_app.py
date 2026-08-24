@@ -417,9 +417,32 @@ def plan_existing_entity(
                 new_relationships[relationship_key],
             )
 
-    presentation_keys = {"label", "label_plural", "description", "title_field", "attachments", "permissions"}
+    presentation_keys = {"label", "label_plural", "description", "title_field", "attachments", "permissions", "record_access"}
     if any(old_entity.get(key) != new_entity.get(key) for key in presentation_keys):
         plan.changes.append(f"Entity metadata or permissions updated: {entity_key}")
+    old_record_access = old_entity.get("record_access")
+    new_record_access = new_entity.get("record_access")
+    if old_record_access != new_record_access:
+        plan.warnings.append(
+            f"Record access changed for {entity_key}; review owner coverage and every role before deployment."
+        )
+        if old_record_access and not new_record_access:
+            plan.blocked.append(
+                f"Removing record access broadens visibility and requires explicit security review: {entity_key}"
+            )
+        elif old_record_access and new_record_access:
+            if old_record_access["owner_field"] != new_record_access["owner_field"]:
+                plan.blocked.append(
+                    f"Changing the record owner field requires a reviewed ownership migration: {entity_key}"
+                )
+            old_scopes = old_record_access["roles"]
+            new_scopes = new_record_access["roles"]
+            for role_key in sorted(old_scopes.keys() & new_scopes.keys()):
+                if old_scopes[role_key] == "own" and new_scopes[role_key] == "all":
+                    plan.blocked.append(
+                        f"Broadening record access from own to all requires explicit security review: "
+                        f"{entity_key}.{role_key}"
+                    )
 
 
 def plan_evolution(old_spec: dict[str, Any], new_spec: dict[str, Any]) -> EvolutionPlan:

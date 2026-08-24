@@ -31,6 +31,7 @@ import { deleteApplicationOption, getApplicationOptionRow, listApplicationOption
 import { generatedCapabilities } from "@/generated/permissions";
 import { withTransaction } from "@/lib/db";
 import { revalidateAfterWrite } from "@/lib/revalidation";
+import { recordAccessForAgent } from "@/lib/record-access";
 
 const entityKeySchema = z.string().regex(/^[a-z][a-z0-9_]{0,47}$/);
 const settingNameSchema = z.string().regex(/^[a-z][a-z0-9_.-]{0,63}$/);
@@ -114,6 +115,7 @@ function recordForAgent(entityKey: string, record: Record<string, unknown>) {
 }
 
 export function createFactoryMcpServer(agent: AgentPrincipal) {
+  const access = recordAccessForAgent(agent);
   const server = new McpServer({
     name: `${runtimeSpec.app.key}-factory`,
     version: "0.1.0",
@@ -262,7 +264,7 @@ export function createFactoryMcpServer(agent: AgentPrincipal) {
       { entityKey, search, filters },
       async () => {
         const entity = requireAgentPermission(agent, entityKey, "list");
-        const count = await countFilteredRecords(entity.key, { search, filters });
+        const count = await countFilteredRecords(entity.key, { search, filters, access });
         return { value: { entityKey: entity.key, count }, resultCount: count };
       },
     ),
@@ -299,8 +301,8 @@ export function createFactoryMcpServer(agent: AgentPrincipal) {
           ? sort
           : undefined;
         const [records, total] = await Promise.all([
-          listRecords(entity.key, { search, filters: safeFilters, sort: safeSort, direction, limit, offset }),
-          countFilteredRecords(entity.key, { search, filters: safeFilters }),
+          listRecords(entity.key, { search, filters: safeFilters, sort: safeSort, direction, limit, offset, access }),
+          countFilteredRecords(entity.key, { search, filters: safeFilters, access }),
         ]);
         return {
           value: {
@@ -324,7 +326,7 @@ export function createFactoryMcpServer(agent: AgentPrincipal) {
     },
     async ({ entityKey, id }) => traced(agent, "get_record", { entityKey, id }, async () => {
       const entity = requireAgentPermission(agent, entityKey, "read");
-      const record = await getRecord(entity.key, id);
+      const record = await getRecord(entity.key, id, undefined, false, access);
       return {
         value: record
           ? { found: true, entityKey: entity.key, record: recordForAgent(entity.key, record) }
@@ -347,6 +349,8 @@ export function createFactoryMcpServer(agent: AgentPrincipal) {
       async () => {
         const entity = requireAgentPermission(agent, entityKey, "read");
         if (!resolveAttachmentPolicy(entity)) throw new Error("La entidad no admite adjuntos.");
+        const record = await getRecord(entity.key, recordId, undefined, false, access);
+        if (!record) return { value: { entityKey: entity.key, recordId, attachments: [] }, resultCount: 0 };
         const attachments = await listAttachments(entity.key, recordId);
         return {
           value: {
@@ -381,6 +385,8 @@ export function createFactoryMcpServer(agent: AgentPrincipal) {
       if (!metadata) return { value: { found: false, attachmentId }, resultCount: 0 };
       const entity = requireAgentPermission(agent, metadata.entity_key, "read");
       if (!resolveAttachmentPolicy(entity)) throw new Error("La entidad no admite adjuntos.");
+      const record = await getRecord(entity.key, metadata.record_id, undefined, false, access);
+      if (!record) return { value: { found: false, attachmentId }, resultCount: 0 };
       if (metadata.size_bytes > MCP_ATTACHMENT_MAX_BYTES) {
         throw new Error("El adjunto supera el límite MCP de 2 MB; usá un adaptador de archivos para contenido mayor.");
       }
@@ -429,8 +435,8 @@ export function createFactoryMcpServer(agent: AgentPrincipal) {
         const entities = await Promise.all(selected.map(async (key) => {
           const entity = requireAgentPermission(agent, key, "list");
           const [records, total] = await Promise.all([
-            listRecords(entity.key, { sort: "id", direction: "asc", limit: maxRecordsPerEntity }),
-            countFilteredRecords(entity.key),
+            listRecords(entity.key, { sort: "id", direction: "asc", limit: maxRecordsPerEntity, access }),
+            countFilteredRecords(entity.key, { access }),
           ]);
           return {
             key: entity.key,
@@ -478,8 +484,8 @@ export function createFactoryMcpServer(agent: AgentPrincipal) {
           request: { values: normalized },
           execute: async (client) => {
             const evaluated = applyRules({ entityKey: entity.key, event: "before_create", values: normalized });
-            const recordId = await insertRecord(entity.key, evaluated.values, client);
-            const after = await getRecord(entity.key, recordId, client);
+            const recordId = await insertRecord(entity.key, evaluated.values, client, access);
+            const after = await getRecord(entity.key, recordId, client, false, access);
             await recordAuditEvent(client, {
               agentId: agent.id,
               agentEventId,
@@ -528,11 +534,11 @@ export function createFactoryMcpServer(agent: AgentPrincipal) {
           idempotencyKey,
           request: { id, values: normalized },
           execute: async (client) => {
-            const before = await getRecord(entity.key, id, client, true);
+            const before = await getRecord(entity.key, id, client, true, access);
             if (!before) throw new Error("El registro que intentás modificar no existe.");
             const evaluated = applyRules({ entityKey: entity.key, event: "before_update", values: normalized, before });
-            await updateRecord(entity.key, id, evaluated.values, client);
-            const after = await getRecord(entity.key, id, client);
+            await updateRecord(entity.key, id, evaluated.values, client, access);
+            const after = await getRecord(entity.key, id, client, false, access);
             await recordAuditEvent(client, {
               agentId: agent.id,
               agentEventId,
@@ -580,11 +586,11 @@ export function createFactoryMcpServer(agent: AgentPrincipal) {
           idempotencyKey,
           request: { id, confirm },
           execute: async (client) => {
-            const before = await getRecord(entity.key, id, client, true);
+            const before = await getRecord(entity.key, id, client, true, access);
             if (!before) throw new Error("El registro que intentás eliminar no existe.");
             const evaluated = applyRules({ entityKey: entity.key, event: "before_delete", values: {}, before });
             const deletedAttachments = await deleteAttachmentsForRecord(client, entity.key, id);
-            await deleteRecord(entity.key, id, client);
+            await deleteRecord(entity.key, id, client, access);
             await recordAuditEvent(client, {
               agentId: agent.id,
               agentEventId,

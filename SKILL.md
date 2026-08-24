@@ -18,6 +18,8 @@ Build an independent operational data foundation from business language. Treat e
 - Expose agents through authenticated, role-scoped MCP tools with independent read, write, and delete scopes. External agents bring their own models; the factory does not require Riel or an embedded LLM to operate.
 - Keep agents technically distinct from users but require one active human owner per agent. Effective access is the intersection of credential scopes, agent role, and the owner's current role; audit preserves both executor and responsible person.
 - Use `user_reference` when a domain profile such as a responsible person may optionally map to one login identity. Keep business attributes on the domain entity and authentication, role, and active status on `app_user`; do not merge them.
+- Add `record_access` only when the request requires row ownership. Its owner must be a direct `user_reference`; every entity role must explicitly choose `all` or `own`; enforce the resulting scope across human UI, views, files, imports, exports, relations, mutations, and MCP. When omitted, preserve entity-level behavior unchanged.
+- Treat workflows as client-specific extensions. Do not invent a universal approval state machine in the generated base; compose the required states, transitions, guards, notifications, and UI in `src/features/` once a real process exists.
 - Treat `tags` as a first-class multi-value field across schema, PostgreSQL arrays/GIN, forms, filters, presentation, imports, exports, MCP, and evolution; never implement only one layer.
 - Keep administrative lists paginated and mobile tables readable as labeled record cards.
 - Fail closed before a deployment applies destructive SQL to live data. Authorization must identify one migration and follow tested backup/restore, never a permanent global bypass.
@@ -28,6 +30,7 @@ Build an independent operational data foundation from business language. Treat e
 
 1. Turn the request into an AppSpec. Read [references/app-spec-v0.md](references/app-spec-v0.md) when authoring or changing a spec; use [references/app-spec.schema.json](references/app-spec.schema.json) for exact validation.
 2. Record material assumptions in `decisions` rather than blocking a reversible foundation on minor ambiguity. Ask only when the answer would materially change data ownership, permissions, or irreversible behavior.
+   If record ownership is required, decide which direct `user_reference` owns the row and which roles use `all` versus `own`; never infer a workflow from that ownership policy.
 3. Check domain neutrality: names and generated primitives must come from the request, not from CRM defaults or prior examples.
 4. Run `scripts/scaffold_app.py --spec <app-spec.json> --output <new-directory>`. The output directory must be new or empty.
 5. For an existing generated application, read [references/evolution.md](references/evolution.md). Keep the current AppSpec intact, create a separate proposed spec, run `scripts/evolve_app.py` without `--apply`, and review the plan. Apply only additive or explicitly safe changes; never bypass a blocked destructive change.

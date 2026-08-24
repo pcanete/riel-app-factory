@@ -7,6 +7,7 @@ import { parseAndValidateImport, type ImportIssue } from "@/lib/data-transfer";
 import { withTransaction } from "@/lib/db";
 import { completeImportBatch, createImportBatch, lockImportBatch } from "@/lib/import-batches";
 import { getRecord, insertRecord } from "@/lib/repository";
+import { recordAccessForUser } from "@/lib/record-access";
 import { revalidateAfterWrite } from "@/lib/revalidation";
 import { applyRules } from "@/lib/rules";
 import { requireEntity } from "@/lib/spec";
@@ -43,6 +44,7 @@ export async function previewImportAction(
 
 export async function confirmImportAction(entityKey: string, batchId: string) {
   const user = await requirePermission(entityKey, "create");
+  const access = recordAccessForUser(user);
   requireEntity(entityKey);
   let imported = 0;
   let failed = false;
@@ -57,8 +59,8 @@ export async function confirmImportAction(entityKey: string, batchId: string) {
         const appliedRules = [...(row.rules ?? []), ...evaluated.applied].filter(
           (rule, index, rules) => rules.findIndex((candidate) => candidate.ruleKey === rule.ruleKey) === index,
         );
-        const recordId = await insertRecord(entityKey, evaluated.values, client);
-        const after = await getRecord(entityKey, recordId, client);
+        const recordId = await insertRecord(entityKey, evaluated.values, client, access);
+        const after = await getRecord(entityKey, recordId, client, false, access);
         await recordAuditEvent(client, {
           actorId: user.id,
           entityKey,

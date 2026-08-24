@@ -55,6 +55,52 @@ class EvolutionTests(unittest.TestCase):
         self.assertIn('ADD CONSTRAINT "ck_equipment_priority"', sql)
         self.assertTrue(any("Rule added" in change for change in plan.changes))
 
+    def test_record_access_is_optional_runtime_metadata_with_review_warning(self) -> None:
+        proposed = copy.deepcopy(self.spec)
+        equipment = next(entity for entity in proposed["entities"] if entity["key"] == "equipment")
+        equipment["fields"].append({
+            "key": "owner_user_id", "label": "Responsable", "type": "user_reference",
+        })
+        equipment["record_access"] = {
+            "owner_field": "owner_user_id",
+            "roles": {role: ("all" if role == "admin" else "own") for role in equipment["permissions"]},
+        }
+        self.assertEqual(validate_spec(proposed), [])
+        plan = plan_evolution(self.spec, proposed)
+        self.assertTrue(plan.safe_to_apply)
+        self.assertTrue(any("Record access changed for equipment" in warning for warning in plan.warnings))
+        self.assertTrue(any('ADD COLUMN "owner_user_id"' in statement for statement in plan.sql))
+
+    def test_record_access_removal_or_broadening_is_blocked(self) -> None:
+        current = copy.deepcopy(self.spec)
+        equipment = next(entity for entity in current["entities"] if entity["key"] == "equipment")
+        equipment["fields"].append({
+            "key": "owner_user_id", "label": "Responsable", "type": "user_reference",
+        })
+        equipment["record_access"] = {
+            "owner_field": "owner_user_id",
+            "roles": {"admin": "all", "supervisor": "own", "technician": "own"},
+        }
+        self.assertEqual(validate_spec(current), [])
+
+        removed = copy.deepcopy(current)
+        next(entity for entity in removed["entities"] if entity["key"] == "equipment").pop("record_access")
+        removal_plan = plan_evolution(current, removed)
+        self.assertFalse(removal_plan.safe_to_apply)
+        self.assertTrue(any("Removing record access" in reason for reason in removal_plan.blocked))
+
+        broadened = copy.deepcopy(current)
+        next(entity for entity in broadened["entities"] if entity["key"] == "equipment")["record_access"]["roles"]["supervisor"] = "all"
+        broadening_plan = plan_evolution(current, broadened)
+        self.assertFalse(broadening_plan.safe_to_apply)
+        self.assertTrue(any("own to all" in reason for reason in broadening_plan.blocked))
+
+        tightened = copy.deepcopy(current)
+        next(entity for entity in tightened["entities"] if entity["key"] == "equipment")["record_access"]["roles"]["admin"] = "own"
+        tightening_plan = plan_evolution(current, tightened)
+        self.assertTrue(tightening_plan.safe_to_apply)
+        self.assertFalse(tightening_plan.blocked)
+
     def test_new_entity_compiles_table_indexes_and_foreign_key(self) -> None:
         proposed = copy.deepcopy(self.spec)
         proposed["entities"].append(

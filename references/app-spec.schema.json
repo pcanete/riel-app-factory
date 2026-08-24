@@ -140,7 +140,21 @@
           "items": {"$ref": "#/$defs/relationship"}
         },
         "attachments": {"$ref": "#/$defs/attachmentPolicy"},
+        "record_access": {"$ref": "#/$defs/recordAccessPolicy"},
         "permissions": {"$ref": "#/$defs/permissionMap"}
+      }
+    },
+    "recordAccessPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["owner_field", "roles"],
+      "properties": {
+        "owner_field": {"$ref": "#/$defs/key"},
+        "roles": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {"enum": ["all", "own"]}
+        }
       }
     },
     "attachmentPolicy": {
