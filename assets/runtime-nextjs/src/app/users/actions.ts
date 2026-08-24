@@ -6,10 +6,12 @@ import { redirect } from "next/navigation";
 import { sendApplicationInvitation } from "@/features/auth/invitations";
 import {
   createManagedUser,
+  countActiveServiceAgentsForOwner,
   getManagedUser,
   getManagedUserForUpdate,
   isLocalPreviewIdentity,
   isManagedUserId,
+  suspendPersonalAgentsForOwner,
   updateManagedUser,
   type ManagedUserInput,
 } from "@/features/users/store";
@@ -36,6 +38,7 @@ function refreshUsers(id?: string) {
   revalidatePath("/users");
   if (id) revalidatePath(`/users/${id}`);
   revalidatePath("/audit");
+  revalidatePath("/agents");
 }
 
 export async function createUserAction(formData: FormData) {
@@ -109,6 +112,12 @@ export async function updateUserAction(id: string, formData: FormData) {
       if (!before) throw new Error("USER_NOT_FOUND");
       if (isLocalPreviewIdentity(before.authSubject)) throw new Error("LOCAL_IDENTITY");
       if (actor.id === id && (!input.active || input.roleKey !== before.roleKey)) throw new Error("SELF_PROTECTION");
+      let suspendedPersonalAgents = 0;
+      if (before.active && !input.active) {
+        const activeServiceAgents = await countActiveServiceAgentsForOwner(client, id);
+        if (activeServiceAgents > 0) throw new Error("SERVICE_AGENT_TRANSFER_REQUIRED");
+        suspendedPersonalAgents = await suspendPersonalAgentsForOwner(client, id);
+      }
       await updateManagedUser(client, id, input);
       const changedStatusOnly = before.email === input.email
         && before.displayName === input.displayName
@@ -122,6 +131,7 @@ export async function updateUserAction(id: string, formData: FormData) {
         changes: {
           before: { email: before.email, displayName: before.displayName, roleKey: before.roleKey, active: before.active },
           after: input,
+          suspendedPersonalAgents,
         },
       });
     });
@@ -130,6 +140,9 @@ export async function updateUserAction(id: string, formData: FormData) {
     if (error instanceof Error && error.message === "USER_NOT_FOUND") redirect("/users?error=not_found");
     if (error instanceof Error && error.message === "LOCAL_IDENTITY") redirect(`/users/${id}?error=local_identity`);
     if (error instanceof Error && error.message === "SELF_PROTECTION") redirect(`/users/${id}?error=self_protection`);
+    if (error instanceof Error && error.message === "SERVICE_AGENT_TRANSFER_REQUIRED") {
+      redirect(`/users/${id}?error=service_agent_transfer_required`);
+    }
     throw error;
   }
   refreshUsers(id);

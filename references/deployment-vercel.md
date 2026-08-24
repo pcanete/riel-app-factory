@@ -79,7 +79,7 @@ A green build is necessary but insufficient. Verify all of the following against
 5. One representative create, read, update, and delete flow enforces permissions and writes audit events.
 6. `/users` can invite or stage a user without allowing self-deactivation or unauthorized role changes.
 7. `/settings` can save and delete a representative non-secret JSON option, and its audit events are visible.
-8. Create a distinct expiring MCP agent, connect with its one-time token, call `list_entities`, then run a representative idempotent create/update/delete cycle first against a disposable database and finally against production; confirm tool events and linked mutation audits at `/agents` and `/audit`.
+8. Create a distinct expiring MCP agent owned by an active application user, connect with its one-time token, call `list_entities`, then run a representative idempotent create/update/delete cycle first against a disposable database and finally against production; confirm that effective access intersects both roles and that tool events plus mutation audits preserve executor and responsible person at `/agents` and `/audit`.
 9. Runtime logs contain no unhandled error for the verified flow.
 
 Record the source commit, production deployment URL, migration result, and verification date in the delivery handoff.
@@ -102,7 +102,7 @@ Do not declare the deployment production-ready when any of these remain unresolv
 - authentication permits public sign-up unintentionally;
 - a supposedly production environment still uses Clerk development keys;
 - server-side permissions or the first-admin link have not been tested;
-- MCP accepts an unauthenticated request, an unapproved host, or an agent cannot be attributed by token and role;
+- MCP accepts an unauthenticated request, an unapproved host, or an agent cannot be attributed by token, role, and active human responsibility;
 - migrations are destructive or have no recovery plan;
 - database recovery ownership is unknown;
 - health, logs, and an authenticated browser flow have not been checked.

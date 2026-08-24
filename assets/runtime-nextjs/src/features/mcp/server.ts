@@ -166,8 +166,10 @@ export function createFactoryMcpServer(agent: AgentPrincipal) {
     }),
   );
 
-  const roleCapabilities = generatedCapabilities?.[agent.roleKey] ?? [];
-  const canManageSettings = roleCapabilities.includes("manage_settings");
+  const agentRoleCapabilities = generatedCapabilities?.[agent.roleKey] ?? [];
+  const ownerRoleCapabilities = generatedCapabilities?.[agent.ownerRoleKey] ?? [];
+  const canManageSettings = agentRoleCapabilities.includes("manage_settings")
+    && ownerRoleCapabilities.includes("manage_settings");
   const requireSettingsRead = () => {
     if (!agent.scopes.includes("settings:read")) throw new Error("La credencial no tiene alcance settings:read.");
   };

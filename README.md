@@ -64,16 +64,16 @@ La CLI queda disponible para automatización o recuperación, siempre con el men
 
 ```bash
 # Sólo lectura
-pnpm mcp:agent:create -- --name "Lector" --role consulta --access read --expires-days 90
+pnpm mcp:agent:create -- --name "Lector" --role consulta --owner-email responsable@example.com --kind personal --access read --expires-days 90
 
 # Lectura, creación y actualización
-pnpm mcp:agent:create -- --name "Operador" --role gestor --access write --expires-days 90
+pnpm mcp:agent:create -- --name "Operador" --role gestor --owner-email responsable@example.com --kind personal --access write --expires-days 90
 
 # CRUD completo, incluida eliminación
-pnpm mcp:agent:create -- --name "Administrador" --role admin --access full --expires-days 30
+pnpm mcp:agent:create -- --name "Administrador" --role admin --owner-email responsable@example.com --kind service --access full --expires-days 30
 ```
 
-El token se muestra una sola vez y PostgreSQL conserva únicamente su hash SHA-256. La autorización combina los alcances de la credencial con los permisos del rol definido en AppSpec. Cada mutación exige una clave de idempotencia, ejecuta reglas deterministas y registra en la misma transacción la identidad del agente. La eliminación requiere alcance independiente y confirmación explícita. Las conexiones de control total pueden además leer y escribir la tabla clave/valor mediante `settings:read` y `settings:write`, sólo si su rol declara `manage_settings`.
+El token se muestra una sola vez y PostgreSQL conserva únicamente su hash SHA-256. Cada agente pertenece a una persona responsable activa; la autorización intersecta los alcances de la credencial, el rol del agente y el rol actual de esa persona. La auditoría conserva ejecutor y responsable, incluso si luego se reasigna el agente. Cada mutación exige una clave de idempotencia, ejecuta reglas deterministas y registra en la misma transacción la identidad del agente. La eliminación requiere alcance independiente y confirmación explícita. Las conexiones de control total pueden además leer y escribir la tabla clave/valor mediante `settings:read` y `settings:write`, sólo si ambos roles declaran `manage_settings`.
 
 Antes de aplicar una migración, el runner detecta `DROP TABLE`, `TRUNCATE`, `DROP COLUMN`, `DELETE` sin `WHERE` y destrucción de esquemas o bases. Si el objeto contiene datos, el despliegue se detiene y exige respaldo verificado y autorización por el nombre exacto de la migración; no existe una habilitación destructiva global.
 

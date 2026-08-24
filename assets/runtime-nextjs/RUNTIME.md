@@ -81,10 +81,10 @@ The application exposes a stateless Streamable HTTP endpoint at `/api/mcp` with 
 After applying migrations, administrators create, revoke, and reactivate agent connections at `/agents`. The interface displays the credential once and prepares a ready-to-paste Claude Code command. The CLI remains available for automation and recovery:
 
 ```bash
-pnpm mcp:agent:create -- --name "Riel" --role admin --access write --expires-days 90
+pnpm mcp:agent:create -- --name "Riel" --role admin --owner-email responsable@example.com --kind service --access write --expires-days 90
 ```
 
-The token is displayed once and stored only as a SHA-256 hash. Send it as `Authorization: Bearer <token>` to `https://<application-host>/api/mcp`. Configure `NEXT_PUBLIC_APP_URL` correctly and use `MCP_ALLOWED_HOSTS` only for explicit additional hosts. `--access read` permits discovery and bounded queries; `write` adds idempotent create/update; `full` also adds explicitly confirmed deletion plus `settings:read` and `settings:write`. Settings writes additionally require the role capability `manage_settings` and preserve agent attribution. AppSpec role permissions, deterministic rules, payload/rate bounds, transactional audit, and agent attribution still apply. Returned business records and plaintext tokens are not copied into the tool-event log.
+The token is displayed once and stored only as a SHA-256 hash. Every agent has one active human owner and is classified as personal or service. Send the token as `Authorization: Bearer <token>` to `https://<application-host>/api/mcp`. Configure `NEXT_PUBLIC_APP_URL` correctly and use `MCP_ALLOWED_HOSTS` only for explicit additional hosts. `--access read` permits discovery and bounded queries; `write` adds idempotent create/update; `full` also adds explicitly confirmed deletion plus `settings:read` and `settings:write`. Effective access intersects credential scopes, the agent's AppSpec role, and the owner's current AppSpec role. Disabling the owner blocks authentication immediately; audit and tool events retain both executor and responsible person as execution-time snapshots. Returned business records and plaintext tokens are not copied into the tool-event log.
 
 Before production, run `pnpm mcp:smoke:write` against a local or disposable database with representative entity values. Do not use production as the first write test.
 

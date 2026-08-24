@@ -19,7 +19,8 @@ export function agentHasPermission(
       ? "records:write"
       : "records:read";
   return agent.scopes.includes(requiredScope)
-    && (permissionMatrix[entityKey]?.[agent.roleKey]?.includes(action) ?? false);
+    && (permissionMatrix[entityKey]?.[agent.roleKey]?.includes(action) ?? false)
+    && (permissionMatrix[entityKey]?.[agent.ownerRoleKey]?.includes(action) ?? false);
 }
 
 export function requireAgentPermission(

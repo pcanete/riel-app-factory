@@ -32,7 +32,7 @@ Después de aplicar migraciones, un administrador puede crear, revocar y reactiv
 Para automatización o recuperación operativa también está disponible la CLI:
 
 ```bash
-pnpm mcp:agent:create -- --name "Riel" --role admin --access write --expires-days 90
+pnpm mcp:agent:create -- --name "Riel" --role admin --owner-email responsable@example.com --kind service --access write --expires-days 90
 ```
 
 Los niveles disponibles son:
@@ -41,7 +41,7 @@ Los niveles disponibles son:
 - `write`: agrega `records:write` para crear y actualizar;
 - `full`: agrega `records:delete`, `settings:read` y `settings:write`.
 
-El token se imprime una sola vez. Guardalo como secreto del agente consumidor; PostgreSQL conserva sólo su hash SHA-256. El rol debe existir en AppSpec. Una operación se autoriza únicamente cuando coinciden el alcance de la credencial y el permiso `list`, `read`, `create`, `update` o `delete` de ese rol sobre la entidad.
+El token se imprime una sola vez. Guardalo como secreto del agente consumidor; PostgreSQL conserva sólo su hash SHA-256. Cada agente tiene una persona responsable activa y puede ser `personal` o de `service`. Una operación se autoriza únicamente cuando coinciden el alcance de la credencial, el permiso del rol del agente y el permiso del rol actual de su responsable. Desactivar a la persona bloquea inmediatamente la autenticación del agente; al desactivarla desde la aplicación también se suspenden sus agentes personales. Los agentes de servicio activos deben transferirse o desactivarse primero.
 
 Las herramientas `list_settings`, `get_setting`, `set_setting` y `delete_setting` operan la configuración global clave/valor. Leer exige `settings:read`; escribir exige simultáneamente `settings:write` y la capacidad de rol `manage_settings`. Cada cambio queda atribuido al agente y auditado. Esta tabla es para configuración JSON, no para reemplazar entidades de negocio.
 
@@ -64,9 +64,9 @@ Cada creación, actualización o eliminación:
 
 ## Trazabilidad
 
-Toda llamada crea un `app_agent_event` antes de acceder a registros y finaliza como completada o fallida. Se almacenan agente, herramienta, entidad opcional, resumen acotado de entrada, cantidad de resultados, duración y error. Los valores enviados en una mutación se resumen mediante nombres de campos y una huella; no se guardan credenciales en texto plano ni registros devueltos.
+Toda llamada crea un `app_agent_event` antes de acceder a registros y finaliza como completada o fallida. Se almacenan agente, responsable humano al momento de la ejecución, herramienta, entidad opcional, resumen acotado de entrada, cantidad de resultados, duración y error. Los valores enviados en una mutación se resumen mediante nombres de campos y una huella; no se guardan credenciales en texto plano ni registros devueltos.
 
-Las mutaciones generan además el mismo evento de auditoría transaccional que una operación humana, enlazado con la identidad y la ejecución MCP.
+Las mutaciones generan además el mismo evento de auditoría transaccional que una operación humana, enlazado con la identidad, la ejecución MCP y una copia inmutable de la persona responsable.
 
 Desactivá o hacé vencer la credencial en `app_agent` cuando deje de utilizarse. Nunca compartas una misma credencial entre agentes o ambientes independientes.
 

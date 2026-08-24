@@ -4,10 +4,19 @@ import { useActionState, useState } from "react";
 import { createAgentAction, type AgentCreateState } from "@/app/agents/actions";
 
 type RoleOption = { key: string; label: string };
+type OwnerOption = { id: string; name: string; email: string };
 
 const initialState: AgentCreateState = { status: "idle" };
 
-export function AgentCreateForm({ roles }: { roles: RoleOption[] }) {
+export function AgentCreateForm({
+  roles,
+  owners,
+  currentUserId,
+}: {
+  roles: RoleOption[];
+  owners: OwnerOption[];
+  currentUserId: string;
+}) {
   const [state, action, pending] = useActionState(createAgentAction, initialState);
   const [copied, setCopied] = useState<"token" | "command" | null>(null);
   const token = state.token ?? "";
@@ -36,6 +45,23 @@ export function AgentCreateForm({ roles }: { roles: RoleOption[] }) {
               {roles.map((role) => <option key={role.key} value={role.key}>{role.label}</option>)}
             </select>
             <span className="field-help">Define sobre qué entidades puede trabajar.</span>
+          </label>
+          <label className="field">
+            <span className="field-label">Persona responsable</span>
+            <select className="control" defaultValue={currentUserId} name="owner_user_id" required>
+              {owners.map((owner) => (
+                <option key={owner.id} value={owner.id}>{owner.name} · {owner.email}</option>
+              ))}
+            </select>
+            <span className="field-help">La actividad del agente quedará atribuida a esta persona.</span>
+          </label>
+          <label className="field">
+            <span className="field-label">Tipo</span>
+            <select className="control" defaultValue="personal" name="agent_kind">
+              <option value="personal">Personal</option>
+              <option value="service">Servicio compartido</option>
+            </select>
+            <span className="field-help">Los agentes personales se suspenden al desactivar a su responsable.</span>
           </label>
           <label className="field">
             <span className="field-label">Permisos</span>

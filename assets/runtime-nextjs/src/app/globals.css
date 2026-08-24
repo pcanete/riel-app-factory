@@ -155,6 +155,8 @@ tbody tr:hover { background: #1a1d25; }
 .form-actions { display: flex; gap: 10px; margin-top: 24px; border-top: 1px solid var(--border); padding-top: 20px; }
 .agent-create-layout { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(320px, .7fr); gap: 18px; align-items: start; }
 .agent-create-form { max-width: none; }
+.agent-owner-form { display: grid; grid-template-columns: minmax(150px, 1fr) minmax(105px, auto) auto; gap: 8px; align-items: center; min-width: 420px; }
+.agent-owner-form .control { min-width: 0; }
 .agent-form-notice { margin: 18px 0 0; }
 .agent-token-card { display: grid; gap: 16px; background: var(--surface); border: 1px solid color-mix(in srgb, #22c58b 44%, var(--border)); border-radius: var(--radius); padding: 24px; }
 .agent-token-card h3, .agent-token-card p { margin: 0; }
@@ -305,6 +307,7 @@ tbody tr:hover { background: #1a1d25; }
 .user-status.off { color: var(--muted); }
 .user-detail-meta { grid-template-columns: 1fr; }
 .user-detail-meta .detail-item.full { grid-column: 1; }
+.plain-list { display: grid; gap: 6px; margin: 0; padding-left: 18px; }
 
 .error-box { max-width: 680px; margin: 15vh auto; padding: 28px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
 
@@ -393,7 +396,8 @@ tbody tr:hover { background: #1a1d25; }
   .page-header { flex-direction: column; }
   .header-actions { justify-content: flex-start; }
   .import-guide { grid-template-columns: 1fr; }
-  .form-grid, .detail-list, .agent-create-layout { grid-template-columns: 1fr; }
+  .form-grid, .detail-list, .agent-create-layout, .agent-owner-form { grid-template-columns: 1fr; }
+  .agent-owner-form { min-width: 0; }
   .attachment-upload { grid-template-columns: 1fr; }
   .attachment-upload .field-help { grid-column: auto; }
   .calendar-toolbar { align-items: stretch; flex-direction: column; }

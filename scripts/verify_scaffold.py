@@ -21,6 +21,7 @@ EXPECTED_FILES = {
     "database/custom/130_application_settings.sql",
     "database/custom/140_mcp_agents.sql",
     "database/custom/150_mcp_write.sql",
+    "database/custom/170_agent_accountability.sql",
     "src/generated/app-spec.ts",
     "src/generated/navigation.ts",
     "src/generated/permissions.ts",
@@ -261,6 +262,11 @@ def main() -> int:
     for invariant in ("records:write", "records:delete", "app_agent_mutation", "agent_event_id"):
         if invariant not in mcp_write_migration:
             failures.append(f"MCP write migration is missing: {invariant}.")
+    accountability_migration_path = project / "database/custom/170_agent_accountability.sql"
+    accountability_migration = accountability_migration_path.read_text(encoding="utf-8") if accountability_migration_path.is_file() else ""
+    for invariant in ("owner_user_id", "created_by_user_id", "agent_kind", "responsible_user_id"):
+        if invariant not in accountability_migration:
+            failures.append(f"Agent accountability migration is missing: {invariant}.")
     mcp_route_path = project / "src/app/api/mcp/route.ts"
     mcp_route = mcp_route_path.read_text(encoding="utf-8") if mcp_route_path.is_file() else ""
     for invariant in ("authenticateAgentToken", "createMcpHandler", "authorization", "factoryAgent"):
@@ -281,9 +287,18 @@ def main() -> int:
             failures.append(f"Agent activity page is missing: {invariant}.")
     agent_actions_path = project / "src/app/agents/actions.ts"
     agent_actions = agent_actions_path.read_text(encoding="utf-8") if agent_actions_path.is_file() else ""
-    for invariant in ("createAgentAction", "setAgentStatusAction", "requireAgentManagementAccess", "recordAuditEvent", "randomBytes"):
+    for invariant in ("createAgentAction", "setAgentStatusAction", "setAgentResponsibilityAction", "requireAgentManagementAccess", "recordAuditEvent", "randomBytes"):
         if invariant not in agent_actions:
             failures.append(f"Agent administration is missing: {invariant}.")
+    mcp_access_path = project / "src/features/mcp/access.ts"
+    mcp_access = mcp_access_path.read_text(encoding="utf-8") if mcp_access_path.is_file() else ""
+    if "ownerRoleKey" not in mcp_access:
+        failures.append("Agent permissions are not intersected with the responsible user's role.")
+    mcp_store_path = project / "src/features/mcp/store.ts"
+    mcp_store = mcp_store_path.read_text(encoding="utf-8") if mcp_store_path.is_file() else ""
+    for invariant in ("ownerUserId", "owner.active = TRUE", "responsible_user_id"):
+        if invariant not in mcp_store:
+            failures.append(f"Agent authentication is missing accountability enforcement: {invariant}.")
     migration_runner_path = project / "scripts/apply-migrations.mjs"
     migration_runner = migration_runner_path.read_text(encoding="utf-8") if migration_runner_path.is_file() else ""
     if 'resolve("database/custom")' not in migration_runner:

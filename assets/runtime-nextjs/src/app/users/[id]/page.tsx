@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { sendUserInvitationAction, updateUserAction } from "@/app/users/actions";
 import { clerkAuthConfigured } from "@/features/auth/config";
-import { getManagedUser, isLocalPreviewIdentity, isManagedUserId, isPendingIdentity } from "@/features/users/store";
+import { getManagedUser, isLocalPreviewIdentity, isManagedUserId, isPendingIdentity, listManagedUserAgents } from "@/features/users/store";
 import { requireUserManagementAccess } from "@/lib/auth";
 import { runtimeSpec } from "@/lib/spec";
 
@@ -15,6 +15,7 @@ const messages: Record<string, string> = {
   self_protection: "No podés desactivar tu propia cuenta ni quitarte el rol actual.",
   inactive_invitation: "Activá el usuario antes de enviarle una invitación.",
   already_linked: "La identidad de este usuario ya está vinculada.",
+  service_agent_transfer_required: "Transferí o desactivá sus agentes de servicio antes de desactivar a esta persona.",
 };
 
 const invitationMessages: Record<string, string> = {
@@ -33,7 +34,7 @@ export default async function UserDetailPage({
   const actor = await requireUserManagementAccess();
   const { id } = await params;
   if (!isManagedUserId(id)) notFound();
-  const [user, requested] = await Promise.all([getManagedUser(id), searchParams]);
+  const [user, requested, agents] = await Promise.all([getManagedUser(id), searchParams, listManagedUserAgents(id)]);
   if (!user) notFound();
   const local = isLocalPreviewIdentity(user.authSubject);
   const self = actor.id === user.id;
@@ -102,6 +103,20 @@ export default async function UserDetailPage({
               </form>
             </div>
           )}
+          <div className="detail-item full">
+            <div className="detail-key">Agentes bajo su responsabilidad</div>
+            <div className="detail-value">
+              {agents.length ? (
+                <ul className="plain-list">
+                  {agents.map((agent) => (
+                    <li key={agent.id}>
+                      {agent.name} · {agent.agent_kind === "personal" ? "Personal" : "Servicio"} · {agent.active ? "Activo" : "Inactivo"}
+                    </li>
+                  ))}
+                </ul>
+              ) : "Todavía no tiene agentes vinculados."}
+            </div>
+          </div>
         </aside>
       </div>
     </>

@@ -1040,6 +1040,7 @@ def compile_report(spec: dict[str, Any]) -> str:
         "- Pagination and opt-in bulk, kanban, and calendar mutations reuse server permissions, deterministic rules, transactions, and audit.",
         "- The runtime provides namespaced JSON application options for reusable module and presentation settings without adding domain-specific tables.",
         "- Remote MCP uses one-way-hashed agent tokens, independent read/write/delete scopes, AppSpec role permissions, bounded tools, host checks, idempotency, rules, transactional mutation audit, and per-tool attribution.",
+        "- Every agent has human responsibility; effective access intersects credential scopes, the agent role, and the active owner's current role.",
         "",
         "## Production gates",
         "",

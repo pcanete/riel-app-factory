@@ -16,7 +16,8 @@ export type AuditAction =
   | "application_option_update"
   | "application_option_delete"
   | "agent_create"
-  | "agent_status";
+  | "agent_status"
+  | "agent_owner";
 
 export type AuditEvent = {
   id: string;
@@ -25,6 +26,9 @@ export type AuditEvent = {
   actor_email: string | null;
   agent_id: string | null;
   agent_name: string | null;
+  responsible_user_id: string | null;
+  responsible_name: string | null;
+  responsible_email: string | null;
   entity_key: string;
   record_id: string | null;
   action: AuditAction;
@@ -38,6 +42,7 @@ export async function recordAuditEvent(
     actorId?: string;
     agentId?: string;
     agentEventId?: string;
+    responsibleUserId?: string;
     entityKey: string;
     recordId: string;
     action: AuditAction;
@@ -49,12 +54,20 @@ export async function recordAuditEvent(
   }
   await transactionSql(
     client,
-    `INSERT INTO app_audit_log (actor_id, agent_id, agent_event_id, entity_key, record_id, action, changes)
-     VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)`,
+    `INSERT INTO app_audit_log (
+       actor_id, agent_id, agent_event_id, responsible_user_id,
+       entity_key, record_id, action, changes
+     )
+     VALUES (
+       $1, $2, $3,
+       COALESCE($4, $1, (SELECT owner_user_id FROM app_agent WHERE id = $2)),
+       $5, $6, $7, $8::jsonb
+     )`,
     [
       event.actorId ?? null,
       event.agentId ?? null,
       event.agentEventId ?? null,
+      event.responsibleUserId ?? null,
       event.entityKey,
       event.recordId,
       event.action,
@@ -99,6 +112,9 @@ export async function listAuditEvents(filters: AuditFilters & { limit?: number; 
             actor.email AS actor_email,
             log.agent_id,
             agent.name AS agent_name,
+            log.responsible_user_id,
+            responsible.display_name AS responsible_name,
+            responsible.email AS responsible_email,
             log.entity_key,
             log.record_id,
             log.action,
@@ -107,6 +123,7 @@ export async function listAuditEvents(filters: AuditFilters & { limit?: number; 
        FROM app_audit_log AS log
        LEFT JOIN app_user AS actor ON actor.id = log.actor_id
        LEFT JOIN app_agent AS agent ON agent.id = log.agent_id
+       LEFT JOIN app_user AS responsible ON responsible.id = log.responsible_user_id
        ${where}
       ORDER BY log.created_at DESC
       LIMIT ${limit} OFFSET ${offset}`,

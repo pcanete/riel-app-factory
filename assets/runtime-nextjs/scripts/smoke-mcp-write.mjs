@@ -38,16 +38,47 @@ const database = new PgClient(databaseConfig({ direct: true }));
 await database.connect();
 
 let agentId;
+let ownerId;
+let ownerWasCreated = false;
 let recordId;
 let client;
 try {
   const role = await database.query("SELECT key FROM app_role WHERE key = $1", [roleKey]);
   if (!role.rowCount) throw new Error(`El rol ${roleKey} no existe.`);
+  const existingOwner = await database.query(
+    "SELECT id FROM app_user WHERE role_key = $1 AND active = TRUE ORDER BY created_at ASC LIMIT 1",
+    [roleKey],
+  );
+  if (existingOwner.rowCount) {
+    ownerId = existingOwner.rows[0].id;
+  } else {
+    const ownerIdentity = randomUUID();
+    const createdOwner = await database.query(
+      `INSERT INTO app_user (auth_subject, email, display_name, role_key, active)
+       VALUES ($1, $2, $3, $4, TRUE)
+       RETURNING id`,
+      [
+        `smoke:${ownerIdentity}`,
+        `smoke-${ownerIdentity}@example.invalid`,
+        "Responsable temporal MCP",
+        roleKey,
+      ],
+    );
+    ownerId = createdOwner.rows[0].id;
+    ownerWasCreated = true;
+  }
   const createdAgent = await database.query(
-    `INSERT INTO app_agent (name, token_hash, role_key, scopes, expires_at)
-     VALUES ($1, $2, $3, ARRAY['schema:read', 'records:read', 'records:write', 'records:delete']::text[], now() + interval '1 hour')
+    `INSERT INTO app_agent (
+       name, token_hash, role_key, scopes, expires_at,
+       owner_user_id, created_by_user_id, agent_kind
+     )
+     VALUES (
+       $1, $2, $3,
+       ARRAY['schema:read', 'records:read', 'records:write', 'records:delete']::text[],
+       now() + interval '1 hour', $4, $4, 'personal'
+     )
      RETURNING id`,
-    [agentName, tokenHash, roleKey],
+    [agentName, tokenHash, roleKey, ownerId],
   );
   agentId = createdAgent.rows[0].id;
 
@@ -100,17 +131,25 @@ try {
     `SELECT
        (SELECT COUNT(*)::int FROM app_agent_event WHERE agent_id = $1 AND status = 'completed') AS events,
        (SELECT COUNT(*)::int FROM app_audit_log WHERE agent_id = $1 AND agent_event_id IS NOT NULL) AS audits,
-       (SELECT COUNT(*)::int FROM app_agent_mutation WHERE agent_id = $1) AS mutations`,
-    [agentId],
+       (SELECT COUNT(*)::int FROM app_agent_mutation WHERE agent_id = $1) AS mutations,
+       (SELECT COUNT(*)::int FROM app_agent_event WHERE agent_id = $1 AND responsible_user_id = $2) AS responsible_events,
+       (SELECT COUNT(*)::int FROM app_audit_log WHERE agent_id = $1 AND responsible_user_id = $2) AS responsible_audits`,
+    [agentId, ownerId],
   );
-  const { events, audits, mutations } = evidence.rows[0];
-  if (events < 6 || audits !== 3 || mutations !== 3) {
-    throw new Error(`Trazabilidad incompleta: eventos=${events}, auditorías=${audits}, mutaciones=${mutations}.`);
+  const { events, audits, mutations, responsible_events: responsibleEvents, responsible_audits: responsibleAudits } = evidence.rows[0];
+  if (events < 6 || audits !== 3 || mutations !== 3 || responsibleEvents < 6 || responsibleAudits !== 3) {
+    throw new Error(
+      `Trazabilidad incompleta: eventos=${events}, auditorías=${audits}, mutaciones=${mutations}, `
+      + `eventos responsables=${responsibleEvents}, auditorías responsables=${responsibleAudits}.`,
+    );
   }
   console.log(`MCP write smoke passed: ${listed.tools.length} tools, ${events} events, ${audits} audited writes, ${mutations} idempotent mutations.`);
 } finally {
   if (client) await client.close().catch(() => undefined);
   if (recordId) await database.query(`DELETE FROM "${entityKey}" WHERE id = $1`, [recordId]).catch(() => undefined);
   if (agentId) await database.query("UPDATE app_agent SET active = FALSE WHERE id = $1", [agentId]).catch(() => undefined);
+  if (ownerWasCreated && ownerId) {
+    await database.query("UPDATE app_user SET active = FALSE WHERE id = $1", [ownerId]).catch(() => undefined);
+  }
   await database.end();
 }

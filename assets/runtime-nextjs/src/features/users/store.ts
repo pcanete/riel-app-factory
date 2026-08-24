@@ -32,6 +32,15 @@ export type ManagedUserInput = {
   active: boolean;
 };
 
+export type ManagedUserAgent = {
+  id: string;
+  name: string;
+  agent_kind: "personal" | "service";
+  active: boolean;
+  expires_at: Date | null;
+  last_used_at: Date | null;
+};
+
 const USER_SELECT = `SELECT users.id,
                             users.auth_subject,
                             users.email,
@@ -151,5 +160,43 @@ export async function updateManagedUser(client: PoolClient, id: string, input: M
             updated_at = now()
       WHERE id = $1`,
     [id, input.email, input.displayName, input.roleKey, input.active],
+  );
+}
+
+export async function countActiveServiceAgentsForOwner(client: PoolClient, ownerUserId: string) {
+  const rows = await transactionSql<{ total: number }>(
+    client,
+    `SELECT count(*)::int AS total
+       FROM app_agent
+      WHERE owner_user_id = $1
+        AND agent_kind = 'service'
+        AND active = TRUE`,
+    [ownerUserId],
+  );
+  return rows[0]?.total ?? 0;
+}
+
+export async function suspendPersonalAgentsForOwner(client: PoolClient, ownerUserId: string) {
+  const rows = await transactionSql<{ id: string }>(
+    client,
+    `UPDATE app_agent
+        SET active = FALSE,
+            updated_at = now()
+      WHERE owner_user_id = $1
+        AND agent_kind = 'personal'
+        AND active = TRUE
+      RETURNING id`,
+    [ownerUserId],
+  );
+  return rows.length;
+}
+
+export async function listManagedUserAgents(ownerUserId: string) {
+  return sql<ManagedUserAgent>(
+    `SELECT id, name, agent_kind, active, expires_at, last_used_at
+       FROM app_agent
+      WHERE owner_user_id = $1
+      ORDER BY active DESC, name ASC`,
+    [ownerUserId],
   );
 }

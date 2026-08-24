@@ -6,6 +6,10 @@ export type AgentPrincipal = {
   name: string;
   roleKey: string;
   scopes: string[];
+  ownerUserId: string;
+  ownerRoleKey: string;
+  ownerName: string;
+  ownerEmail: string;
 };
 
 type AgentRow = {
@@ -13,6 +17,10 @@ type AgentRow = {
   name: string;
   role_key: string;
   scopes: string[];
+  owner_user_id: string;
+  owner_role_key: string;
+  owner_name: string;
+  owner_email: string;
 };
 
 function tokenHash(token: string) {
@@ -22,17 +30,36 @@ function tokenHash(token: string) {
 export async function authenticateAgentToken(token: string): Promise<AgentPrincipal | null> {
   if (!token.startsWith("factory_mcp_") || token.length < 48 || token.length > 160) return null;
   const rows = await sql<AgentRow>(
-    `UPDATE app_agent
+    `UPDATE app_agent AS agent
         SET last_used_at = now()
-      WHERE token_hash = $1
-        AND active = TRUE
-        AND (expires_at IS NULL OR expires_at > now())
-      RETURNING id, name, role_key, scopes`,
+       FROM app_user AS owner
+      WHERE agent.token_hash = $1
+        AND agent.active = TRUE
+        AND agent.owner_user_id = owner.id
+        AND owner.active = TRUE
+        AND (agent.expires_at IS NULL OR agent.expires_at > now())
+      RETURNING agent.id,
+                agent.name,
+                agent.role_key,
+                agent.scopes,
+                owner.id AS owner_user_id,
+                owner.role_key AS owner_role_key,
+                owner.display_name AS owner_name,
+                owner.email AS owner_email`,
     [tokenHash(token)],
   );
   const row = rows[0];
   return row
-    ? { id: row.id, name: row.name, roleKey: row.role_key, scopes: row.scopes }
+    ? {
+        id: row.id,
+        name: row.name,
+        roleKey: row.role_key,
+        scopes: row.scopes,
+        ownerUserId: row.owner_user_id,
+        ownerRoleKey: row.owner_role_key,
+        ownerName: row.owner_name,
+        ownerEmail: row.owner_email,
+      }
     : null;
 }
 
@@ -43,9 +70,12 @@ export async function startAgentToolEvent(input: {
   inputSummary: Record<string, unknown>;
 }) {
   const rows = await sql<{ id: string }>(
-    `INSERT INTO app_agent_event (agent_id, tool_name, entity_key, input_summary, status)
-     SELECT $1, $2, $3, $4::jsonb, 'running'
-      WHERE (SELECT COUNT(*) FROM app_agent_event WHERE agent_id = $1 AND started_at > now() - interval '1 minute') < 120
+    `INSERT INTO app_agent_event (agent_id, responsible_user_id, tool_name, entity_key, input_summary, status)
+     SELECT agent.id, agent.owner_user_id, $2, $3, $4::jsonb, 'running'
+       FROM app_agent AS agent
+      WHERE agent.id = $1
+        AND agent.owner_user_id IS NOT NULL
+        AND (SELECT COUNT(*) FROM app_agent_event WHERE agent_id = $1 AND started_at > now() - interval '1 minute') < 120
      RETURNING id`,
     [input.agentId, input.toolName, input.entityKey ?? null, JSON.stringify(input.inputSummary)],
   );

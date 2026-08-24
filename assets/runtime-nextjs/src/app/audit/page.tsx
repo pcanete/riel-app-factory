@@ -22,6 +22,7 @@ const actions: Array<{ key: AuditAction; label: string }> = [
   { key: "application_option_delete", label: "Opción eliminada" },
   { key: "agent_create", label: "Conexión de agente creada" },
   { key: "agent_status", label: "Acceso de agente modificado" },
+  { key: "agent_owner", label: "Responsable de agente modificado" },
 ];
 
 export default async function AuditPage({
@@ -83,6 +84,7 @@ export default async function AuditPage({
               <tr>
                 <th>Fecha</th>
                 <th>Ejecutado por</th>
+                <th>Responsable</th>
                 <th>Entidad</th>
                 <th>Acción</th>
                 <th>Registro</th>
@@ -96,6 +98,10 @@ export default async function AuditPage({
                   <td data-label="Ejecutado por">
                     <div>{event.agent_name ? `Agente: ${event.agent_name}` : event.actor_name ?? "Identidad eliminada"}</div>
                     <div className="table-secondary">{event.agent_id ? "MCP" : event.actor_email ?? "—"}</div>
+                  </td>
+                  <td data-label="Responsable">
+                    <div>{event.responsible_name ?? "Responsabilidad no asignada"}</div>
+                    <div className="table-secondary">{event.responsible_email ?? "—"}</div>
                   </td>
                   <td data-label="Entidad">{entityLabels[event.entity_key] ?? event.entity_key}</td>
                   <td data-label="Acción"><span className={`audit-badge ${event.action}`}>{actionLabels[event.action]}</span></td>
