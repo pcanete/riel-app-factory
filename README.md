@@ -4,6 +4,14 @@ App Factory convierte un pedido de negocio en una base operativa de datos indepe
 
 Riel no es la fábrica. Riel puede coordinar agentes que consuman el endpoint MCP de una aplicación generada, pero la fábrica y cada aplicación siguen siendo utilizables de manera independiente. El repositorio y el identificador del skill conservan el nombre histórico `riel-app-factory` por compatibilidad.
 
+## Qué resuelve para una organización
+
+App Factory permite crear una base operativa a medida sin empezar cada sistema desde cero ni forzar al cliente dentro de un CRM, ERP o CMS genérico. Convierte procesos que hoy viven en planillas, correos y herramientas aisladas en una fuente de verdad central, accesible desde una interfaz web sencilla.
+
+Las personas pueden consultar y mantener la información con roles y permisos; los agentes autorizados pueden leerla y operarla mediante MCP; y cada acción conserva trazabilidad sobre quién la ejecutó y qué persona es responsable. Cuando cambia el negocio, la aplicación puede incorporar entidades, campos, vistas, reglas e integraciones sin abandonar su base ni depender de un runtime propietario.
+
+El beneficio práctico es menos información duplicada, menos instalaciones individuales, mayor control sobre los datos y una base preparada para automatizar trabajo con agentes sin perder supervisión humana. Cada cliente conserva su propia aplicación, base de datos, credenciales, despliegue y código fuente.
+
 ## Qué genera
 
 - entidades, campos, relaciones, roles y permisos del servidor;
