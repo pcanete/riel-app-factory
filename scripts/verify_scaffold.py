@@ -318,6 +318,13 @@ def main() -> int:
     for invariant in ("createAgentAction", "setAgentStatusAction", "setAgentResponsibilityAction", "requireAgentManagementAccess", "recordAuditEvent", "randomBytes"):
         if invariant not in agent_actions:
             failures.append(f"Agent administration is missing: {invariant}.")
+    agent_form_path = project / "src/components/agent-create-form.tsx"
+    agent_form = agent_form_path.read_text(encoding="utf-8") if agent_form_path.is_file() else ""
+    for invariant in ("claude mcp add", "codex mcp add", "bearer-token-env-var", "JSON universal", "CREDENCIAL_INCLUIDA", "Esta conexión necesita OAuth", "has-result"):
+        if invariant not in agent_form:
+            failures.append(f"Generic MCP connection assistant is missing: {invariant}.")
+    if "useEffect" not in agent_form or "window.location.origin" not in agent_form:
+        failures.append("MCP connection assistant does not derive its endpoint after hydration.")
     mcp_access_path = project / "src/features/mcp/access.ts"
     mcp_access = mcp_access_path.read_text(encoding="utf-8") if mcp_access_path.is_file() else ""
     if "ownerRoleKey" not in mcp_access:

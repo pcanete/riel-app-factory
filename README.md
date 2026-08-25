@@ -75,7 +75,7 @@ La opción no se activa implícitamente: si `record_access` no existe, la aplica
 
 ## Acceso de agentes mediante MCP
 
-Las aplicaciones generadas exponen Streamable HTTP autenticado en `/api/mcp`. Un administrador crea, revoca y reactiva conexiones desde la pantalla `/agents`, que entrega una credencial de un solo uso y un comando listo para Claude Code.
+Las aplicaciones generadas exponen Streamable HTTP autenticado en `/api/mcp`. Un administrador crea, revoca y reactiva conexiones desde la pantalla `/agents`, que entrega una credencial de un solo uso y un asistente de conexión para Claude Code, Codex, clientes configurables por JSON y cualquier cliente HTTP compatible. La credencial queda oculta por defecto y las configuraciones copiadas incluyen el secreto real sin exponerlo en una captura casual. ChatGPT se identifica por separado porque requiere la futura capa OAuth: la interfaz no promete una compatibilidad Bearer que el backend todavía no ofrece.
 
 La CLI queda disponible para automatización o recuperación, siempre con el menor acceso necesario:
 

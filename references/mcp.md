@@ -27,7 +27,9 @@ No se ofrece SQL arbitrario, ejecución de código ni acceso directo a tablas in
 
 ## Identidad, alcances y autorización
 
-Después de aplicar migraciones, un administrador puede crear, revocar y reactivar conexiones desde `/agents`. La interfaz muestra la credencial una sola vez y prepara el comando de conexión para Claude Code.
+Después de aplicar migraciones, un administrador puede crear, revocar y reactivar conexiones desde `/agents`. La interfaz muestra la credencial una sola vez y prepara adaptadores de presentación para Claude Code, Codex, JSON compatible y configuración HTTP manual. Todos reutilizan la misma identidad, alcances y auditoría del servidor; no crean tipos distintos de agente.
+
+La credencial y los bloques que la contienen se enmascaran por defecto. Los botones de copia entregan el valor completo al portapapeles y el administrador puede revelarlo deliberadamente. Para Codex, el bloque guarda el token en una variable de entorno del usuario y registra el servidor mediante `--bearer-token-env-var`; el proceso de Codex debe reiniciarse para leer una variable nueva. ChatGPT aparece como una integración futura porque sus aplicaciones MCP personalizadas requieren una capa OAuth; no debe presentarse el token Bearer actual como una instalación compatible.
 
 Para automatización o recuperación operativa también está disponible la CLI:
 

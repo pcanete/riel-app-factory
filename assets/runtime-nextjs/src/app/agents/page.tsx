@@ -32,7 +32,7 @@ export default async function AgentsPage({
         <div>
           <p className="eyebrow">Operación mediante MCP</p>
           <h1>Agentes</h1>
-          <p className="subtitle">Creá y controlá conexiones para Claude, Riel u otros agentes sin usar la terminal.</p>
+          <p className="subtitle">Creá y controlá conexiones MCP para Claude, Codex, Riel u otros agentes desde un solo lugar.</p>
         </div>
         <Link className="button secondary" href="/audit?source=agent">Ver actividad y auditoría</Link>
       </div>
@@ -42,7 +42,7 @@ export default async function AgentsPage({
       {requested.saved && successMessages[requested.saved] && <div className="notice success">{successMessages[requested.saved]}</div>}
 
       <section>
-        <div className="section-heading"><div><h2>Nueva conexión</h2><p className="subtitle">Elegí qué puede hacer y copiá el acceso listo para usar.</p></div></div>
+        <div className="section-heading"><div><h2>Nueva conexión</h2><p className="subtitle">Elegí permisos y responsable; después copiá la configuración para tu cliente MCP.</p></div></div>
         <AgentCreateForm
           currentUserId={actor.id}
           owners={owners.map((owner) => ({ id: owner.id, name: owner.displayName, email: owner.email }))}
