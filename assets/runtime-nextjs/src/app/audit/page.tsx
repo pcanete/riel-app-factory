@@ -1,4 +1,5 @@
 import { Pagination } from "@/components/pagination";
+import { AuditActivityMap } from "@/components/audit-activity-map";
 import { countActivityEvents, listActivityAgents, listActivityEvents, type ActivitySource, type AuditAction } from "@/lib/audit";
 import { requireAuditAccess } from "@/lib/auth";
 import { formatValue } from "@/lib/presentation";
@@ -45,6 +46,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
 
   return <>
     <div className="page-header"><div><p className="eyebrow">Control interno</p><h1>Actividad y auditoría</h1><p className="subtitle">{total.toLocaleString("es-AR")} eventos humanos y de agentes en una sola trazabilidad.</p></div></div>
+    <AuditActivityMap actionLabels={actionLabels} entityLabels={entityLabels} events={events} locale={runtimeSpec.app.locale} />
     <form className="toolbar">
       <select aria-label="Filtrar por origen" className="control audit-filter" defaultValue={source ?? ""} name="source"><option value="">Todos los orígenes</option><option value="human">Personas</option><option value="agent">Agentes</option></select>
       <select aria-label="Filtrar por agente" className="control audit-filter" defaultValue={agentId ?? ""} name="agent"><option value="">Todos los agentes</option>{agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}</select>

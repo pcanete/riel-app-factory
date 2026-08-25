@@ -63,6 +63,7 @@ EXPECTED_FILES = {
     "src/app/records/[entity]/[id]/page.tsx",
     "src/components/import-upload-form.tsx",
     "src/components/agent-create-form.tsx",
+    "src/components/audit-activity-map.tsx",
     "src/components/record-form.tsx",
     "src/components/attachment-panel.tsx",
     "src/components/record-filters.tsx",
@@ -214,6 +215,17 @@ def main() -> int:
     audit_page = audit_page_path.read_text(encoding="utf-8") if audit_page_path.is_file() else ""
     if "requireAuditAccess" not in audit_page or "listActivityEvents" not in audit_page:
         failures.append("Unified activity page is missing its server-side access or data check.")
+    if "AuditActivityMap" not in audit_page:
+        failures.append("Unified activity page is missing the real-event activity map.")
+    activity_map_path = project / "src/components/audit-activity-map.tsx"
+    activity_map = activity_map_path.read_text(encoding="utf-8") if activity_map_path.is_file() else ""
+    for invariant in ("buildActivityGraph", "responsible_user_id", "activity-map-svg-description", "events.slice"):
+        if invariant not in activity_map:
+            failures.append(f"Activity map is missing its audited-data invariant: {invariant}.")
+    global_styles_path = project / "src/app/globals.css"
+    global_styles = global_styles_path.read_text(encoding="utf-8") if global_styles_path.is_file() else ""
+    if "prefers-reduced-motion: reduce" not in global_styles or "activity-map-link-flow" not in global_styles:
+        failures.append("Activity map motion or reduced-motion fallback is missing.")
     user_actions_path = project / "src/app/users/actions.ts"
     user_actions = user_actions_path.read_text(encoding="utf-8") if user_actions_path.is_file() else ""
     for invariant in ("requireUserManagementAccess", "withTransaction", "recordAuditEvent", "SELF_PROTECTION", "LOCAL_IDENTITY"):
