@@ -88,13 +88,14 @@ unchanged. Treat these upgrades as a separate compatibility exercise:
 1. Snapshot and verify the deployed source revision before editing.
 2. Keep `app-spec.json`, generated migrations, and every applied custom migration unchanged
    unless the feature genuinely requires an additive database change.
-3. Diff the current application against the new Factory runtime by ownership zone. Port only
-   reviewed runtime and client-owned changes; never replace the complete repository blindly.
+3. Follow [platform-updates.md](platform-updates.md): inspect `check_platform.py`, resolve
+   missing baselines or conflicts, then apply `update_platform.py --apply` on the review branch.
+   Never replace the complete repository blindly or overwrite client-only edits.
 4. When removing a feature, remove its routes, navigation, dependencies, environment contract,
    documentation, and tests together. Historical tables may remain when dropping them adds
    unnecessary migration risk; document that they are inactive.
-5. Regenerate the dependency lockfile and ensure it no longer declares removed direct
-   dependencies. A stale build cache may still reference deleted routes, so validate from a
+5. Review the dependency diff and install with the committed frozen lockfile. Regenerate it
+   only for explicitly reconciled dependency changes. A stale build cache may still reference deleted routes, so validate from a
    clean generated cache before treating type errors as source failures.
 6. Run Factory regression tests, application typecheck, and a clean production build before
    committing. Record the exact verified commit.

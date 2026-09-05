@@ -3,7 +3,7 @@ import {
   saveApplicationOptionAction,
   saveApplicationSettingsAction,
 } from "@/app/settings/actions";
-import { getApplicationSettings, listApplicationOptions } from "@/features/settings/store";
+import { getApplicationSettings, listApplicationOptions } from "@/platform/settings/store";
 import { requireSettingsAccess } from "@/lib/auth";
 import { formatValue } from "@/lib/presentation";
 import { runtimeSpec } from "@/lib/spec";

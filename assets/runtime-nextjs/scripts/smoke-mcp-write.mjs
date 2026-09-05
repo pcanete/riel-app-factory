@@ -106,7 +106,7 @@ try {
     name: "create_record",
     arguments: { entityKey, values: createValues, idempotencyKey: createKey },
   }));
-  if (replayed.record?.id !== recordId || replayed.idempotent_replay !== true) throw new Error("La repetición idempotente no devolvió el mismo registro.");
+    if (replayed.record || replayed.idempotent_replay !== true || replayed.already_applied !== true) throw new Error("La repetición debe confirmar la operación sin devolver datos históricos.");
 
   const updated = structured(await client.callTool({
     name: "update_record",

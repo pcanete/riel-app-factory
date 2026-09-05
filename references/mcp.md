@@ -64,6 +64,14 @@ Cada creación, actualización o eliminación:
 
 `delete_record` requiere además `records:delete` y `confirm: true`. Cuando una entidad necesite aprobación humana, segregación de funciones o efectos externos, debe añadirse un adaptador específico; no se debe debilitar este núcleo genérico.
 
+Desde la base 0.2, repetir una mutación aplicada devuelve únicamente
+`{entityKey, already_applied: true, idempotent_replay: true}`. No vuelve a ejecutar la
+escritura ni devuelve el registro histórico. Esto evita que un cambio de responsable
+permita leer datos antiguos mediante la caché de idempotencia. Los resultados antiguos
+que pudieran quedar almacenados se ignoran; las operaciones nuevas guardan sólo un recibo.
+Para conocer el estado actual, usá una herramienta de lectura con los permisos actuales.
+Los consumidores que dependían de `record` en una repetición deben adaptarse a este contrato.
+
 ## Trazabilidad
 
 Toda llamada crea un `app_agent_event` antes de acceder a registros y finaliza como completada o fallida. Se almacenan agente, responsable humano al momento de la ejecución, herramienta, entidad opcional, resumen acotado de entrada, cantidad de resultados, duración y error. Los valores enviados en una mutación se resumen mediante nombres de campos y una huella; no se guardan credenciales en texto plano ni registros devueltos.

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createUserAction } from "@/app/users/actions";
 import { Pagination } from "@/components/pagination";
-import { countManagedUsers, isLocalPreviewIdentity, isPendingIdentity, listManagedUsers, userSummary } from "@/features/users/store";
+import { countManagedUsers, isLocalPreviewIdentity, isPendingIdentity, listManagedUsers, userSummary } from "@/platform/users/store";
 import { requireUserManagementAccess } from "@/lib/auth";
 import { runtimeSpec } from "@/lib/spec";
 

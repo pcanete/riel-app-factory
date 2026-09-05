@@ -1164,11 +1164,14 @@ through an explicit adapter; do not edit files in `src/generated/`.
 External agents use the authenticated MCP endpoint. Add embedded AI only as an optional
 client feature, and never bypass application permissions with direct SQL.
 
-`settings/store.ts` exposes namespaced JSON application options. Use those primitives
+`@/platform/settings/store` exposes namespaced JSON application options. Use those primitives
 for non-secret module configuration instead of creating ad hoc settings tables.
 
-`auth/adapter.ts` uses Clerk only as the production identity boundary. Keep active
+`@/platform/auth/adapter` uses Clerk only as the production identity boundary. Keep active
 status, AppSpec roles, permissions, and invitation provisioning in PostgreSQL.
+
+The exact legacy auth/users/settings/mcp bridge files belong to Factory. Do not edit
+them; new business modules belong in their own feature paths.
 """
 
 
@@ -1178,6 +1181,9 @@ Put client-specific migrations here. Never edit an applied migration in
 `database/generated/`; add a new reviewed migration with an explicit dependency.
 Do not add `BEGIN` or `COMMIT`: the migration runner wraps each migration and its
 ledger entry in one atomic transaction.
+
+Historical Factory migrations 110-170 retain their paths here for ledger compatibility.
+Do not edit them. New Factory migrations live in database/platform/.
 """
 
 
@@ -1211,6 +1217,9 @@ def copy_runtime(spec: dict[str, Any], output: Path) -> list[Path]:
     for path in output.rglob("*"):
         if not path.is_file():
             continue
+        if b"\x00" in path.read_bytes():
+            copied.append(path)
+            continue
         try:
             content = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
@@ -1241,6 +1250,8 @@ def scaffold(spec: dict[str, Any], output: Path) -> list[Path]:
         destination = output / relative_path
         write_text(destination, content)
         written.append(destination)
+    from platform_files import write_manifest
+    written.append(write_manifest(output, Path(__file__).resolve().parent.parent / "assets/runtime-nextjs", spec))
     return written
 
 

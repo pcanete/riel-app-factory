@@ -14,6 +14,8 @@
     "mcp:smoke:write": "node --env-file-if-exists=.env.local scripts/smoke-mcp-write.mjs",
     "test:destructive-guard": "node scripts/test-destructive-guard.mjs",
     "test:record-access": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-record-access.mjs",
+    "test:security-db": "node --experimental-strip-types --env-file-if-exists=.env.local --import ./scripts/alias-register.mjs scripts/test-security-db.mjs",
+    "test:migrations-db": "node --env-file-if-exists=.env.local scripts/test-migrations-db.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

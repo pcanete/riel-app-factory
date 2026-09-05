@@ -13,6 +13,10 @@ from scaffold_app import validate_spec
 
 
 EXPECTED_FILES = {
+    "platform-manifest.json",
+    "database/platform/OWNERSHIP.md",
+    "scripts/test-security-db.mjs",
+    "scripts/test-migrations-db.mjs",
     "app-spec.json",
     "BUILD_REPORT.md",
     "database/generated/001_initial.sql",
@@ -73,17 +77,17 @@ EXPECTED_FILES = {
     "src/components/operational-calendar.tsx",
     "src/components/pagination.tsx",
     "src/components/session-sign-out.tsx",
-    "src/features/auth/adapter.ts",
-    "src/features/auth/config.ts",
-    "src/features/auth/invitations.ts",
-    "src/features/settings/store.ts",
-    "src/features/users/store.ts",
-    "src/features/mcp/access.ts",
-    "src/features/mcp/admin.ts",
+    "src/platform/auth/adapter.ts",
+    "src/platform/auth/config.ts",
+    "src/platform/auth/invitations.ts",
+    "src/platform/settings/store.ts",
+    "src/platform/users/store.ts",
+    "src/platform/mcp/access.ts",
+    "src/platform/mcp/admin.ts",
     "src/lib/record-access.ts",
-    "src/features/mcp/mutations.ts",
-    "src/features/mcp/server.ts",
-    "src/features/mcp/store.ts",
+    "src/platform/mcp/mutations.ts",
+    "src/platform/mcp/server.ts",
+    "src/platform/mcp/store.ts",
     "src/lib/auth-types.ts",
     "src/lib/auth.ts",
     "src/lib/audit.ts",
@@ -270,7 +274,7 @@ def main() -> int:
     for invariant in ("saveApplicationOptionAction", "deleteApplicationOptionAction", "requireSettingsAccess", "recordAuditEvent", "withTransaction"):
         if invariant not in settings_actions:
             failures.append(f"Application settings actions are missing: {invariant}.")
-    settings_store_path = project / "src/features/settings/store.ts"
+    settings_store_path = project / "src/platform/settings/store.ts"
     settings_store = settings_store_path.read_text(encoding="utf-8") if settings_store_path.is_file() else ""
     for invariant in ("getApplicationOption", "listApplicationOptions", "upsertApplicationOption", "deleteApplicationOption"):
         if invariant not in settings_store:
@@ -300,7 +304,7 @@ def main() -> int:
     for invariant in ("authenticateAgentToken", "createMcpHandler", "authorization", "factoryAgent"):
         if invariant not in mcp_route:
             failures.append(f"MCP endpoint is missing: {invariant}.")
-    mcp_server_path = project / "src/features/mcp/server.ts"
+    mcp_server_path = project / "src/platform/mcp/server.ts"
     mcp_server = mcp_server_path.read_text(encoding="utf-8") if mcp_server_path.is_file() else ""
     for invariant in ("list_entities", "describe_entity", "query_records", "get_record", "list_attachments", "read_attachment", "export_snapshot", "startAgentToolEvent"):
         if invariant not in mcp_server:
@@ -325,7 +329,7 @@ def main() -> int:
             failures.append(f"Generic MCP connection assistant is missing: {invariant}.")
     if "useEffect" not in agent_form or "window.location.origin" not in agent_form:
         failures.append("MCP connection assistant does not derive its endpoint after hydration.")
-    mcp_access_path = project / "src/features/mcp/access.ts"
+    mcp_access_path = project / "src/platform/mcp/access.ts"
     mcp_access = mcp_access_path.read_text(encoding="utf-8") if mcp_access_path.is_file() else ""
     if "ownerRoleKey" not in mcp_access:
         failures.append("Agent permissions are not intersected with the responsible user's role.")
@@ -343,7 +347,7 @@ def main() -> int:
             failures.append(f"Central repository record enforcement is missing: {invariant}.")
     if "recordAccessForAgent" not in mcp_server:
         failures.append("MCP tools do not carry the responsible human's record-level access context.")
-    mcp_store_path = project / "src/features/mcp/store.ts"
+    mcp_store_path = project / "src/platform/mcp/store.ts"
     mcp_store = mcp_store_path.read_text(encoding="utf-8") if mcp_store_path.is_file() else ""
     for invariant in ("ownerUserId", "owner.active = TRUE", "responsible_user_id"):
         if invariant not in mcp_store:
@@ -372,12 +376,12 @@ def main() -> int:
                 and re.search(r"^(?:BEGIN|COMMIT);\s*$", outside_dollar_quotes, re.MULTILINE)
             ):
                 failures.append(f"Migration opens its own transaction: {migration_directory}/{migration.name}.")
-    production_adapter_path = project / "src/features/auth/adapter.ts"
+    production_adapter_path = project / "src/platform/auth/adapter.ts"
     production_adapter = production_adapter_path.read_text(encoding="utf-8") if production_adapter_path.is_file() else ""
     for invariant in ("auth()", "currentUser()", "emailVerified"):
         if invariant not in production_adapter:
             failures.append(f"Production authentication adapter is missing: {invariant}.")
-    production_auth_path = project / "src/features/auth/invitations.ts"
+    production_auth_path = project / "src/platform/auth/invitations.ts"
     production_auth = production_auth_path.read_text(encoding="utf-8") if production_auth_path.is_file() else ""
     if "createInvitation" not in production_auth or "ignoreExisting" not in production_auth:
         failures.append("Production invitation delivery is incomplete.")

@@ -19,6 +19,15 @@ jobs:
         run: |
           python scripts/test_scaffold.py
           python scripts/test_evolve_app.py
+          python scripts/test_platform.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Test pure security policies
+        working-directory: assets/runtime-nextjs
+        run: |
+          node scripts/test-destructive-guard.mjs
+          node scripts/test-record-access.mjs
       - name: Generate and verify the reference application
         run: |
           python scripts/scaffold_app.py --spec references/example-maintenance.app-spec.json --output /tmp/riel-reference-app
@@ -37,7 +46,7 @@ jobs:
           version: 10
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
       - name: Generate the reference application
         run: python scripts/scaffold_app.py --spec references/example-maintenance.app-spec.json --output /tmp/riel-reference-app
       - name: Install generated dependencies
@@ -76,7 +85,7 @@ jobs:
           version: 10
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
       - name: Generate the reference application
         run: python scripts/scaffold_app.py --spec references/example-maintenance.app-spec.json --output /tmp/riel-reference-app
       - name: Install generated dependencies
@@ -123,7 +132,7 @@ jobs:
           version: 10
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
       - name: Generate and apply v1
         run: |
           python scripts/scaffold_app.py --spec references/example-maintenance.app-spec.json --output /tmp/evolving-app
@@ -160,3 +169,44 @@ jobs:
         run: |
           pnpm typecheck
           pnpm db:smoke
+
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: factory_security
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/factory_security
+      FACTORY_TEST_DATABASE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Generate a private-record fixture
+        run: python scripts/security_fixture.py /tmp/factory-security
+      - name: Install and verify against real PostgreSQL
+        working-directory: /tmp/factory-security
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm db:apply
+          pnpm db:apply
+          pnpm test:security-db
+          pnpm test:migrations-db

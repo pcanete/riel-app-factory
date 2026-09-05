@@ -5,13 +5,19 @@ export function stripComments(source) {
 }
 
 function cleanObject(value) {
-  return value.replace(/\b(cascade|restrict)\b/gi, "").replace(/"/g, "").trim();
+  return value.replace(/\s+(cascade|restrict)\s*$/i, "").trim();
+}
+
+function identifier(value) {
+  const quoted = value.startsWith('"') && value.endsWith('"');
+  const raw = quoted ? value.slice(1, -1) : value;
+  return IDENTIFIER.test(raw) ? (quoted ? raw : raw.toLowerCase()) : null;
 }
 
 function splitName(value) {
-  const parts = value.split(".").map((part) => part.trim()).filter(Boolean);
-  if (parts.length === 1 && IDENTIFIER.test(parts[0])) return { schema: "public", table: parts[0] };
-  if (parts.length === 2 && parts.every((part) => IDENTIFIER.test(part))) return { schema: parts[0], table: parts[1] };
+  const parts = value.split(".").map((part) => identifier(part.trim()));
+  if (parts.length === 1 && parts[0]) return { schema: "public", table: parts[0] };
+  if (parts.length === 2 && parts.every(Boolean)) return { schema: parts[0], table: parts[1] };
   return null;
 }
 
@@ -21,19 +27,19 @@ export function destructiveOperations(source) {
   for (const match of sql.matchAll(/\bdrop\s+table\s+(?:if\s+exists\s+)?([^;]+)/gi)) {
     for (const value of match[1].split(",")) {
       const object = cleanObject(value);
-      if (object) found.push({ operation: "DROP TABLE", object });
+      if (object) found.push({ operation: "DROP TABLE", object, ...(/\bcascade\b/i.test(match[1]) ? { alwaysCritical: true } : {}) });
     }
   }
   for (const match of sql.matchAll(/\btruncate\s+(?:table\s+)?([^;]+)/gi)) {
     for (const value of match[1].split(",")) {
       const object = cleanObject(value);
-      if (object) found.push({ operation: "TRUNCATE", object });
+      if (object) found.push({ operation: "TRUNCATE", object, ...(/\bcascade\b/i.test(match[1]) ? { alwaysCritical: true } : {}) });
     }
   }
-  for (const match of sql.matchAll(/\balter\s+table\s+(?:if\s+exists\s+)?([^\s;]+)([\s\S]*?)(?=;|$)/gi)) {
+  for (const match of sql.matchAll(/\balter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?([^\s;]+)([\s\S]*?)(?=;|$)/gi)) {
     const object = cleanObject(match[1]);
-    for (const column of match[2].matchAll(/\bdrop\s+column\s+(?:if\s+exists\s+)?([^\s,;]+)/gi)) {
-      found.push({ operation: "DROP COLUMN", object, column: cleanObject(column[1]) });
+    for (const column of match[2].matchAll(/\bdrop\s+(?!constraint\b|not\s+null\b|default\b|identity\b|expression\b)(?:column\s+)?(?:if\s+exists\s+)?([^\s,;]+)/gi)) {
+      found.push({ operation: "DROP COLUMN", object, column: cleanObject(column[1]), ...(/\bcascade\b/i.test(match[2]) ? { alwaysCritical: true } : {}) });
     }
   }
   for (const match of sql.matchAll(/\bdelete\s+from\s+([^\s;]+)([^;]*)/gi)) {
@@ -45,7 +51,7 @@ export function destructiveOperations(source) {
   return found;
 }
 
-export async function operationsWithData(client, operations) {
+export async function operationsWithData(client, operations, { lockTargets = false } = {}) {
   const critical = [];
   for (const operation of operations) {
     if (operation.alwaysCritical) {
@@ -58,19 +64,23 @@ export async function operationsWithData(client, operations) {
       continue;
     }
     try {
-      const exists = await client.query("SELECT to_regclass($1) AS oid", [`${target.schema}.${target.table}`]);
+      const qualified = `"${target.schema}"."${target.table}"`;
+      const exists = await client.query("SELECT to_regclass($1) AS oid", [qualified]);
       if (!exists.rows[0]?.oid) continue;
+      // The runner keeps this lock until the inspection and DDL commit together.
+      if (lockTargets) await client.query(`LOCK TABLE ${qualified} IN ACCESS EXCLUSIVE MODE`);
       if (operation.column) {
-        if (!IDENTIFIER.test(operation.column)) {
+        const columnName = identifier(operation.column);
+        if (!columnName) {
           critical.push({ ...operation, reason: "no se pudo interpretar el nombre de la columna" });
           continue;
         }
         const column = await client.query(
           "SELECT 1 FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 AND column_name = $3",
-          [target.schema, target.table, operation.column],
+          [target.schema, target.table, columnName],
         );
         if (!column.rowCount) continue;
-        const values = await client.query(`SELECT EXISTS (SELECT 1 FROM "${target.schema}"."${target.table}" WHERE "${operation.column}" IS NOT NULL LIMIT 1) AS present`);
+        const values = await client.query(`SELECT EXISTS (SELECT 1 FROM "${target.schema}"."${target.table}" WHERE "${columnName}" IS NOT NULL LIMIT 1) AS present`);
         if (values.rows[0]?.present) critical.push({ ...operation, reason: "la columna contiene valores" });
         continue;
       }

@@ -23,7 +23,7 @@ El beneficio práctico es menos información duplicada, menos instalaciones indi
 - referencias opcionales desde registros de dominio a cuentas de usuario, sin mezclar perfiles operativos con identidad y rol;
 - seguridad por registro opcional basada en una cuenta responsable, aplicada de forma uniforme a la interfaz, vistas, archivos, importaciones, exportaciones y MCP;
 - una red visual animada de la actividad auditada que conecta responsables humanos, agentes y entidades sin inventar eventos;
-- un asistente de IA de sólo lectura con claves personales cifradas de OpenAI o Anthropic;
+- configuración clave/valor JSON para opciones no secretas de la aplicación;
 - un endpoint MCP sin estado con credenciales por agente, lectura, escritura y eliminación opcional;
 - zonas explícitas para extender cada solución sin romper lo generado.
 
@@ -31,7 +31,7 @@ Cada aplicación obtiene su propio repositorio, base de datos, despliegue, crede
 
 ## Inicio rápido
 
-Requisitos: Python 3.11+ para la fábrica; Node.js 20+ y PostgreSQL para la aplicación generada.
+Requisitos: Python 3.11+ para la fábrica; Node.js 24+, pnpm y PostgreSQL para la aplicación generada.
 
 ```bash
 python scripts/test_scaffold.py
@@ -67,6 +67,22 @@ Después de revisar el plan, aplicá cambios aditivos seguros con `--apply` y un
 
 Consultá el [contrato completo de evolución](references/evolution.md).
 
+### Actualizar la base sin pisar el trabajo de cada cliente
+
+Cambiar entidades y actualizar la plataforma son operaciones separadas. Las apps nuevas
+incluyen `platform-manifest.json`, que registra las huellas del runtime original. El
+actualizador compara esa base, la app actual y la nueva versión de Factory:
+
+```bash
+python scripts/check_platform.py --project ../maintenance-demo
+python scripts/update_platform.py --project ../maintenance-demo --apply
+```
+
+Conserva modificaciones exclusivas del cliente, bloquea conflictos y migraciones
+históricas alteradas, y crea un respaldo local antes de modificar código. Si la app no
+tiene manifiesto, se detiene: no supone que sus archivos sean reemplazables. Leé el
+[procedimiento de actualización y adopción](references/platform-updates.md) antes de aplicarlo.
+
 ### Seguridad por registro, sólo cuando el caso la necesita
 
 Una entidad puede declarar `record_access` en AppSpec y definir, para cada rol, alcance `all` o `own`. El alcance `own` hace que una persona vea y opere exclusivamente los registros cuyo campo `user_reference` de propiedad apunta a su cuenta. Un agente hereda además el alcance de su responsable humano; prevalece siempre la restricción más fuerte.
@@ -92,7 +108,12 @@ pnpm mcp:agent:create -- --name "Administrador" --role admin --owner-email respo
 
 El token se muestra una sola vez y PostgreSQL conserva únicamente su hash SHA-256. Cada agente pertenece a una persona responsable activa; la autorización intersecta los alcances de la credencial, el rol del agente y el rol actual de esa persona. La auditoría conserva ejecutor y responsable, incluso si luego se reasigna el agente. Cada mutación exige una clave de idempotencia, ejecuta reglas deterministas y registra en la misma transacción la identidad del agente. La eliminación requiere alcance independiente y confirmación explícita. Las conexiones de control total pueden además leer y escribir la tabla clave/valor mediante `settings:read` y `settings:write`, sólo si ambos roles declaran `manage_settings`.
 
-Antes de aplicar una migración, el runner detecta `DROP TABLE`, `TRUNCATE`, `DROP COLUMN`, `DELETE` sin `WHERE` y destrucción de esquemas o bases. Si el objeto contiene datos, el despliegue se detiene y exige respaldo verificado y autorización por el nombre exacto de la migración; no existe una habilitación destructiva global.
+Antes de aplicar una migración, el runner inspecciona operaciones destructivas comunes,
+incluido `ALTER TABLE … DROP` sin la palabra `COLUMN`. Si encuentra datos, o una operación
+destructiva con `CASCADE`, se detiene. La excepción exige autorización por el nombre exacto
+de la migración; no existe una habilitación global. El runner serializa sus ejecuciones
+y mantiene inspección y DDL en una transacción. Esta guarda no es un parser SQL completo
+ni reemplaza revisar SQL, respaldar los datos y probar su restauración.
 
 Conectá el agente a `https://tu-aplicacion.example/api/mcp` usando `Authorization: Bearer <token>`. Cada herramienta queda registrada en `app_agent_event` sin copiar al log los datos comerciales devueltos.
 
@@ -119,8 +140,9 @@ Leé el [procedimiento de producción en Vercel](references/deployment-vercel.md
 ## Límites de arquitectura
 
 - `app-spec.json` es la fuente de verdad de la estructura generada.
-- `src/generated/` y `database/generated/` son resultados reemplazables.
-- `src/features/`, `src/components/custom/` y `database/custom/` pertenecen a la aplicación.
+- `src/generated/` contiene metadata regenerable; las migraciones en `database/generated/` son inmutables una vez aplicadas.
+- `src/platform/` contiene autenticación, usuarios, opciones y MCP compartidos. El manifiesto identifica los archivos de runtime actualizables.
+- `src/features/`, `src/components/custom/` y las migraciones propias en `database/custom/` pertenecen al cliente. Sólo se reservan los diez puentes históricos de imports y las siete migraciones históricas 110–170; no se reclama la carpeta completa.
 - Regenerar nunca debe sobrescribir comportamiento específico del cliente.
 - Integraciones, aprobaciones, escrituras externas y cálculos propios del dominio requieren adaptadores revisados.
 - Los workflows son extensiones del cliente: la base aporta identidad, roles, auditoría y seguridad por registro opcional, pero no presume circuitos de aprobación universales.

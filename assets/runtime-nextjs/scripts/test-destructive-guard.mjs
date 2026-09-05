@@ -18,10 +18,21 @@ function fakeClient({ exists = true, rows = false, column = true, values = false
 }
 
 const drop = destructiveOperations("DROP TABLE item;");
+assert(destructiveOperations("ALTER TABLE item DROP note;")[0]?.column === "note", "COLUMN is optional in PostgreSQL");
+assert(destructiveOperations("ALTER TABLE item DROP CONSTRAINT legacy;").length === 0, "constraint removal is not column removal");
+assert(destructiveOperations("ALTER TABLE item ALTER COLUMN note DROP DEFAULT;").length === 0, "default removal is not column removal");
+for (const source of ["TRUNCATE item CASCADE;", "DROP TABLE item CASCADE;", "ALTER TABLE item DROP note CASCADE;"]) {
+  assert((await operationsWithData(fakeClient({ exists: false }), destructiveOperations(source))).length > 0, "CASCADE requires explicit authorization even if the named table is empty or absent");
+}
 assert((await operationsWithData(fakeClient({ exists: false }), drop)).length === 0, "missing tables must not block");
 assert((await operationsWithData(fakeClient({ rows: false }), drop)).length === 0, "empty tables must not block");
 assert((await operationsWithData(fakeClient({ rows: true }), drop)).length === 1, "tables with rows must block");
 assert((await operationsWithData({ async query() { throw new Error("offline"); } }, drop)).length === 1, "inspection failures must fail closed");
+for (const [source, expected] of [["DROP TABLE ITEM;", '"public"."item"'], ['DROP TABLE "Item";', '"public"."Item"']]) {
+  let inspected;
+  await operationsWithData({ async query(_sql, values) { inspected = values?.[0]; return { rows: [{ oid: null }] }; } }, destructiveOperations(source));
+  assert(inspected === expected, "identifiers must follow PostgreSQL quoted/unquoted case semantics");
+}
 assert(allowedDestructiveMigrations({ ALLOW_DESTRUCTIVE_MIGRATIONS: "custom/200_cleanup.sql" }).has("custom/200_cleanup.sql"), "authorization must be migration-specific");
 assert(blockedMigrationMessage("custom/200_cleanup.sql", [{ operation: "DROP TABLE", object: "item", reason: "la tabla contiene filas" }]).includes("respaldo"), "blocking message must explain recovery");
 

@@ -1,7 +1,7 @@
 import type { AuthInfo } from "@modelcontextprotocol/server";
 import { createMcpHandler } from "@modelcontextprotocol/server";
-import { createFactoryMcpServer } from "@/features/mcp/server";
-import { authenticateAgentToken, type AgentPrincipal } from "@/features/mcp/store";
+import { createFactoryMcpServer } from "@/platform/mcp/server";
+import { authenticateAgentToken, type AgentPrincipal } from "@/platform/mcp/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

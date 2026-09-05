@@ -6,7 +6,7 @@ import {
   deleteApplicationOption,
   setApplicationGeneralSettings,
   upsertApplicationOption,
-} from "@/features/settings/store";
+} from "@/platform/settings/store";
 import { recordAuditEvent } from "@/lib/audit";
 import { requireSettingsAccess } from "@/lib/auth";
 import { withTransaction } from "@/lib/db";

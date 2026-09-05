@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
-import { productionAuthAdapter } from "@/features/auth/adapter";
+import { productionAuthAdapter } from "@/platform/auth/adapter";
 import { generatedCapabilities, generatedPermissions } from "@/generated/permissions";
 import { recordAuditEvent } from "@/lib/audit";
 import type { PermissionAction, RuntimeUser } from "@/lib/auth-types";

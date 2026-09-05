@@ -2,6 +2,8 @@
 
 This project is a local application foundation generated from `app-spec.json`.
 
+Use Node.js 24+ and the committed pnpm lockfile.
+
 ## Local preview
 
 1. Start PostgreSQL with `docker compose up -d db`, or provide any PostgreSQL connection.
@@ -66,7 +68,8 @@ Navigation-enabled table, kanban, calendar, and dashboard definitions are render
 - calendar events use a validated date/datetime field and the AppSpec timezone;
 - dashboards provide count/sum/average metrics, enum/boolean breakdowns, and recent-record tables without arbitrary SQL.
 
-These views are read-oriented. Drag-and-drop mutations, scheduling side effects, and specialized charting remain client features.
+Mutations from table, kanban and calendar views are opt-in AppSpec capabilities and reuse
+server permissions and auditing. Rich scheduling side effects and specialized charting remain client features.
 
 ## Deterministic rules
 
@@ -78,7 +81,7 @@ Users with `view_rules` can inspect the active definitions at `/rules`. The kern
 
 The application exposes a stateless Streamable HTTP endpoint at `/api/mcp` with separately scoped read, write, and delete capabilities. Authorized agents can also list attachments and read files up to 2 MB; returned bytes are base64-encoded and checked against their stored SHA-256 hash. Larger files need a reviewed storage adapter instead of an oversized MCP response. MCP is the default AI and agent interface: an external coordinator such as Riel, Codex, or Claude brings its own model, model provider, context, and orchestration. The application therefore requires no embedded chat or LLM credential.
 
-After applying migrations, administrators create, revoke, and reactivate agent connections at `/agents`. The interface displays the credential once and prepares a ready-to-paste Claude Code command. The CLI remains available for automation and recovery:
+After applying migrations, administrators create, revoke, and reactivate agent connections at `/agents`. The interface provides connection adapters for Claude Code, Codex, JSON and HTTP. The CLI remains available for automation and recovery:
 
 ```bash
 pnpm mcp:agent:create -- --name "Riel" --role admin --owner-email responsable@example.com --kind service --access write --expires-days 90
@@ -90,10 +93,27 @@ Before production, run `pnpm mcp:smoke:write` against a local or disposable data
 
 Mutation tools remain constrained by AppSpec rules, idempotency, transactional auditing, explicit delete confirmation, and the agent's role and scopes.
 
+An idempotent replay returns only `{entityKey, already_applied: true, idempotent_replay: true}`,
+never a cached business record. Read current data through a normally authorized read tool.
+
 ## Application settings
 
-`/settings` requires `manage_settings` and is backed by `app_setting`, a namespaced key/value registry with a native `jsonb` value. It accepts strings, numbers, booleans, objects, arrays, and null, and is the default home for non-secret module and presentation options. Use `getApplicationOption(namespace, key, fallback)` from `src/features/settings/store.ts` in client features. Keep tokens, passwords, and private credentials in deployment environment variables or an approved secret manager, never in `app_setting`.
+`/settings` requires `manage_settings` and is backed by `app_setting`, a namespaced key/value registry with a native `jsonb` value. It accepts strings, numbers, booleans, objects, arrays, and null, and is the default home for non-secret module and presentation options. Use `getApplicationOption(namespace, key, fallback)` from `src/platform/settings/store.ts` in client features. Keep tokens, passwords, and private credentials in deployment environment variables or an approved secret manager, never in `app_setting`.
 
 ## Ownership
 
 Do not add client behavior to `src/generated/` or `database/generated/`. Use `src/features/`, `src/components/custom/`, and `database/custom/`.
+
+Shared auth/users/settings/MCP live in `src/platform/`. Ten legacy feature import bridges
+and the seven historical Factory SQL files 110–170 are reserved compatibility files.
+New platform SQL belongs in `database/platform/`; do not move applied migration files.
+`platform-manifest.json` tracks the baseline for Factory's read-only `check_platform.py`
+and explicit `update_platform.py --apply`. Keep it versioned. Unknown baselines, conflicts
+and changed historical SQL block updates; client-only edits are preserved. Applying creates
+a `.factory-backup-*` source backup and lock; see Factory's `references/platform-updates.md`
+before adoption, updates or recovery. This does not back up or roll back PostgreSQL.
+
+Security maintainers can generate Factory's `scripts/security_fixture.py` into a separate
+app and run `pnpm test:security-db` and `pnpm test:migrations-db` with
+`FACTORY_TEST_DATABASE=1`. These tests require a disposable database and the dedicated
+fixture; never run them against this application's production data.

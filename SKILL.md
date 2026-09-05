@@ -13,6 +13,7 @@ Build an independent operational data foundation from business language. Treat e
 - Model the domain with neutral primitives: entities, fields, relationships, views, roles, permissions, and rules.
 - Keep `app-spec.json` as the source of truth for generated structure.
 - Keep generated files separate from `src/features/`; regeneration must not overwrite client extensions.
+- Keep shared auth, users, settings, and MCP in `src/platform/`. Track rendered runtime checksums in `platform-manifest.json`; never adopt unknown client files as Factory-owned. Preserve historical import bridges and SQL ledger identifiers.
 - Produce ordinary source and PostgreSQL artifacts that remain usable without this skill.
 - Keep the human interface intentionally sufficient for data administration; prioritize safe schema evolution and agent operability over vertical-product polish.
 - Expose agents through authenticated, role-scoped MCP tools with independent read, write, and delete scopes. External agents bring their own models; the factory does not require Riel or an embedded LLM to operate.
@@ -34,9 +35,11 @@ Build an independent operational data foundation from business language. Treat e
 3. Check domain neutrality: names and generated primitives must come from the request, not from CRM defaults or prior examples.
 4. Run `scripts/scaffold_app.py --spec <app-spec.json> --output <new-directory>`. The output directory must be new or empty.
 5. For an existing generated application, read [references/evolution.md](references/evolution.md). Keep the current AppSpec intact, create a separate proposed spec, run `scripts/evolve_app.py` without `--apply`, and review the plan. Apply only additive or explicitly safe changes; never bypass a blocked destructive change.
+   For runtime upgrades instead of domain changes, read [references/platform-updates.md](references/platform-updates.md). Run `check_platform.py`, resolve every conflict or unknown baseline, then apply with a persistent source backup. Do not overwrite whole application trees or applied SQL.
 6. Review `BUILD_REPORT.md` or `EVOLUTION_REPORT.md`, every new SQL migration, the generated registry, permission matrix, runtime, and extension boundary.
 7. Install dependencies and run a typecheck or production build when the environment permits it.
 8. With a disposable or approved PostgreSQL database, run `pnpm db:apply` and `pnpm db:smoke`; the smoke test must cover every generated entity and roll back its records by default.
+   When changing security or the migration runner, generate the dedicated `scripts/security_fixture.py` app and run `test:security-db` and `test:migrations-db` with `FACTORY_TEST_DATABASE=1` on a disposable database. Do not substitute source-string assertions for these tests. Run `scripts/test_platform.py` for updater changes.
 9. Run `scripts/verify_scaffold.py <generated-directory>` before presenting the result. When a dev server is started, also verify the rendered UI and at least one complete CRUD path in a real browser.
 10. Use `ALLOW_UNSAFE_LOCAL_PREVIEW=true` only for local development. Production uses Clerk for identity and PostgreSQL for active status, roles, and server-side permissions; keep it closed until keys, invitation-only access, first-admin bootstrap, and end-to-end login are verified.
 11. Use the namespaced `app_setting` JSON registry for non-secret module and presentation options. Keep tokens, passwords, and private credentials in deployment environment variables or an approved secret manager.

@@ -1,4 +1,4 @@
-import type { AgentPrincipal } from "@/features/mcp/store";
+import type { AgentPrincipal } from "@/platform/mcp/store";
 import type { RuntimeUser } from "@/lib/auth-types";
 import type { EntitySpec } from "@/lib/spec";
 

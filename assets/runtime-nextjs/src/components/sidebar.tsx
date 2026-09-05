@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { clearDevelopmentRoleAction } from "@/app/dev-access/actions";
 import { SessionSignOut } from "@/components/session-sign-out";
-import { clerkAuthConfigured } from "@/features/auth/config";
+import { clerkAuthConfigured } from "@/platform/auth/config";
 import { canManageAgents, canManageSettings, canManageUsers, canViewAudit, canViewRules, getCurrentUser, hasPermission, hasViewAccess } from "@/lib/auth";
 import { localPreviewAuthEnabled } from "@/lib/runtime-access";
 import { runtimeSpec } from "@/lib/spec";

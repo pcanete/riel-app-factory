@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { setAgentResponsibilityAction, setAgentStatusAction } from "@/app/agents/actions";
 import { AgentCreateForm } from "@/components/agent-create-form";
-import { listManagedAgents } from "@/features/mcp/admin";
+import { listManagedAgents } from "@/platform/mcp/admin";
 import { requireAgentManagementAccess } from "@/lib/auth";
-import { listManagedUsers } from "@/features/users/store";
+import { listManagedUsers } from "@/platform/users/store";
 import { formatDateTimeValue } from "@/lib/presentation";
 import { runtimeSpec } from "@/lib/spec";
 

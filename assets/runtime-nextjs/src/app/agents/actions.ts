@@ -10,8 +10,8 @@ import {
   setManagedAgentActive,
   setManagedAgentResponsibility,
   type AgentKind,
-} from "@/features/mcp/admin";
-import { isManagedUserId } from "@/features/users/store";
+} from "@/platform/mcp/admin";
+import { isManagedUserId } from "@/platform/users/store";
 import { recordAuditEvent } from "@/lib/audit";
 import { requireAgentManagementAccess } from "@/lib/auth";
 import { withTransaction } from "@/lib/db";
