@@ -225,12 +225,18 @@ def main() -> int:
         failures.append("Unified activity page is missing the real-event activity map.")
     activity_map_path = project / "src/components/audit-activity-map.tsx"
     activity_map = activity_map_path.read_text(encoding="utf-8") if activity_map_path.is_file() else ""
-    for invariant in ("buildActivityGraph", "responsible_user_id", "activity-map-svg-description", "events.slice"):
+    for invariant in ("buildActivityGraph", "aria-label", "eventRoute", "visibilitychange", "prefers-reduced-motion", "router.refresh"):
         if invariant not in activity_map:
             failures.append(f"Activity map is missing its audited-data invariant: {invariant}.")
     global_styles_path = project / "src/app/globals.css"
     global_styles = global_styles_path.read_text(encoding="utf-8") if global_styles_path.is_file() else ""
-    if "prefers-reduced-motion: reduce" not in global_styles or "activity-map-link-flow" not in global_styles:
+    graph_model_path = project / "src/lib/activity-graph.ts"
+    graph_model = graph_model_path.read_text(encoding="utf-8") if graph_model_path.is_file() else ""
+    if "responsible_user_id" not in audit_page or "events.slice(0, GRAPH_LIMIT)" not in audit_page:
+        failures.append("Activity graph DTO must preserve attribution and bound server serialization.")
+    if "GRAPH_LIMIT = 40" not in graph_model or "slice(0, GRAPH_LIMIT)" not in graph_model:
+        failures.append("Activity graph must bound and aggregate actual events.")
+    if "prefers-reduced-motion: reduce" not in global_styles or "neural-particle" not in global_styles:
         failures.append("Activity map motion or reduced-motion fallback is missing.")
     user_actions_path = project / "src/app/users/actions.ts"
     user_actions = user_actions_path.read_text(encoding="utf-8") if user_actions_path.is_file() else ""
