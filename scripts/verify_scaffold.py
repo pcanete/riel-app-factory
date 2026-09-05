@@ -68,6 +68,8 @@ EXPECTED_FILES = {
     "src/components/import-upload-form.tsx",
     "src/components/agent-create-form.tsx",
     "src/components/audit-activity-map.tsx",
+    "src/lib/activity-graph.ts",
+    "scripts/test-activity-graph.mjs",
     "src/components/record-form.tsx",
     "src/components/attachment-panel.tsx",
     "src/components/record-filters.tsx",

@@ -1,5 +1,6 @@
 import { Pagination } from "@/components/pagination";
 import { AuditActivityMap } from "@/components/audit-activity-map";
+import { GRAPH_LIMIT } from "@/lib/activity-graph";
 import { countActivityEvents, listActivityAgents, listActivityEvents, type ActivitySource, type AuditAction } from "@/lib/audit";
 import { requireAuditAccess } from "@/lib/auth";
 import { formatValue } from "@/lib/presentation";
@@ -42,11 +43,26 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
   const page = Number.isInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, pages) : 1;
   const events = await listActivityEvents({ ...filters, limit: pageSize, offset: (page - 1) * pageSize });
   const entityLabels = Object.fromEntries(auditEntities.map((entity) => [entity.key, entity.label]));
-  const actionLabels: Record<string, string> = Object.fromEntries(mutationActions.map((item) => [item.key, item.label]));
+  const actionLabels: Record<string, string> = {
+    ...Object.fromEntries(mutationActions.map((item) => [item.key, item.label])),
+    list_entities: "Explorar entidades", describe_entity: "Consultar estructura",
+    query_records: "Consultar registros", get_record: "Leer registro", count_records: "Contar registros",
+    create_record: "Crear registro", update_record: "Modificar registro", delete_record: "Eliminar registro",
+    list_attachments: "Listar adjuntos", read_attachment: "Leer adjunto", export_snapshot: "Exportar datos",
+    list_settings: "Listar opciones", get_setting: "Consultar opción", set_setting: "Guardar opción", delete_setting: "Eliminar opción",
+  };
 
   return <>
     <div className="page-header"><div><p className="eyebrow">Control interno</p><h1>Actividad y auditoría</h1><p className="subtitle">{total.toLocaleString("es-AR")} eventos humanos y de agentes en una sola trazabilidad.</p></div></div>
-    <AuditActivityMap actionLabels={actionLabels} entityLabels={entityLabels} events={events} locale={runtimeSpec.app.locale} />
+    <AuditActivityMap key={`${page}:${events.map(event => `${event.event_key}:${event.status}`).join(",")}`} entityLabels={entityLabels} total={total} page={page} events={events.slice(0, GRAPH_LIMIT).map(event => ({
+      key: event.event_key, source: event.source, actorId: event.actor_id,
+      actor: event.agent_name ?? event.actor_name ?? "Identidad eliminada",
+      agentId: event.agent_id, responsibleId: event.responsible_user_id,
+      responsible: event.responsible_name, entity: event.entity_key,
+      action: actionLabels[event.action] ?? event.action, status: event.status,
+      timestamp: new Date(event.created_at).toISOString(),
+      timeLabel: formatValue(event.created_at, runtimeSpec.app.locale), duration: event.duration_ms,
+    }))} />
     <form className="toolbar">
       <select aria-label="Filtrar por origen" className="control audit-filter" defaultValue={source ?? ""} name="source"><option value="">Todos los orígenes</option><option value="human">Personas</option><option value="agent">Agentes</option></select>
       <select aria-label="Filtrar por agente" className="control audit-filter" defaultValue={agentId ?? ""} name="agent"><option value="">Todos los agentes</option>{agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}</select>
@@ -54,7 +70,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
       <select aria-label="Filtrar por evento" className="control audit-filter" defaultValue={action ?? ""} name="action"><option value="">Todos los eventos</option><optgroup label="Cambios">{mutationActions.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</optgroup><optgroup label="Herramientas MCP">{toolActions.map((tool) => <option key={tool} value={tool}>{tool}</option>)}</optgroup></select>
       <button className="button secondary" type="submit">Filtrar</button>
     </form>
-    <div className="table-wrap mobile-card-wrap">{events.length ? <table className="audit-table mobile-cards"><thead><tr><th>Fecha</th><th>Origen</th><th>Ejecutado por</th><th>Responsable</th><th>Entidad</th><th>Evento</th><th>Resultado</th><th>Detalle</th></tr></thead><tbody>{events.map((event) => <tr key={event.event_key}>
+    <div className="table-wrap mobile-card-wrap">{events.length ? <table className="audit-table mobile-cards"><thead><tr><th>Fecha</th><th>Origen</th><th>Ejecutado por</th><th>Responsable</th><th>Entidad</th><th>Evento</th><th>Resultado</th><th>Detalle</th></tr></thead><tbody>{events.map((event) => <tr id={`event-${event.event_key}`} key={event.event_key}>
       <td data-label="Fecha">{formatValue(event.created_at, runtimeSpec.app.locale)}</td>
       <td data-label="Origen"><span className={`audit-badge ${event.source === "agent" ? "update" : "create"}`}>{event.source === "agent" ? "Agente" : "Persona"}</span></td>
       <td data-label="Ejecutado por"><div>{event.agent_name ?? event.actor_name ?? "Identidad eliminada"}</div><div className="table-secondary">{event.agent_name ? "MCP" : event.actor_email ?? "—"}</div></td>

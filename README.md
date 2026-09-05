@@ -22,7 +22,7 @@ El beneficio práctico es menos información duplicada, menos instalaciones indi
 - autenticación con Clerk y gestión de usuarios de la aplicación;
 - referencias opcionales desde registros de dominio a cuentas de usuario, sin mezclar perfiles operativos con identidad y rol;
 - seguridad por registro opcional basada en una cuenta responsable, aplicada de forma uniforme a la interfaz, vistas, archivos, importaciones, exportaciones y MCP;
-- una red visual animada de la actividad auditada que conecta responsables humanos, agentes y entidades sin inventar eventos;
+- un visor interactivo de la actividad auditada: red neuronal, selección de personas/agentes/entidades, reproducción histórica con pausa, pasos y enlace al evento original; sin inventar actividad en vivo ni consumir IA;
 - configuración clave/valor JSON para opciones no secretas de la aplicación;
 - un endpoint MCP sin estado con credenciales por agente, lectura, escritura y eliminación opcional;
 - zonas explícitas para extender cada solución sin romper lo generado.

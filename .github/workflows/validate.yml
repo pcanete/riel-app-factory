@@ -28,6 +28,7 @@ jobs:
         run: |
           node scripts/test-destructive-guard.mjs
           node scripts/test-record-access.mjs
+          node scripts/test-activity-graph.mjs
       - name: Generate and verify the reference application
         run: |
           python scripts/scaffold_app.py --spec references/example-maintenance.app-spec.json --output /tmp/riel-reference-app

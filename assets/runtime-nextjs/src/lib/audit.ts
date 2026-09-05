@@ -116,7 +116,7 @@ export async function listActivityEvents(filters: ActivityFilters & { limit?: nu
   const limit = `$${values.length}`;
   values.push(Math.max(0, filters.offset ?? 0));
   const offset = `$${values.length}`;
-  return sql<ActivityEvent>(`SELECT * FROM (${ACTIVITY_QUERY}) AS activity ${where} ORDER BY activity.created_at DESC LIMIT ${limit} OFFSET ${offset}`, values);
+  return sql<ActivityEvent>(`SELECT * FROM (${ACTIVITY_QUERY}) AS activity ${where} ORDER BY activity.created_at DESC, activity.event_key ASC LIMIT ${limit} OFFSET ${offset}`, values);
 }
 
 export async function listActivityAgents() {
