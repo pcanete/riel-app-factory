@@ -33,5 +33,29 @@ está detallada en PLATFORM_UPGRADE_2026-09-05.md de Mesa. El chequeo de platafo
 admite aplicar, conserva las excepciones locales y no reescribe SQL histórico.
 Git respalda código; no reemplaza el respaldo de PostgreSQL ni de adjuntos externos.
 
-Las pruebas locales no certifican por sí solas producción: al desplegar se debe
-confirmar READY, health, sesión real, auditoría y errores runtime en Vercel.
+## Producción verificada
+
+- Runtime Factory: `ed3350a2326215c68b0434e2fcd887166dcd4f6e`.
+- Mesa publicada en main: `13100972c1816cf8bcebeb657f1bf6a030999bd0`.
+- Vercel: `dpl_AnKkSAsTnxXc3dZ9xvPVXAyReGQt`, target production, estado READY,
+  proyecto prj_TyAo8zRGoXWiNQMT1Y3JVtk6l7V5, alias mesa-expedientes-demo.vercel.app.
+- Fuente: 137 archivos leídos de blobs Git comprometidos, sin entornos privados.
+  El conector no conservó los metadatos Git personalizados; esta correspondencia
+  documenta explícitamente la fuente enviada, no una atribución inferida de Vercel.
+- Intervalo buildingAt → ready: 22,2 s. Next.js 16.3.1.
+- Health HTTP 200; MCP sin token HTTP 401; sesión humana autenticada operativa.
+- Auditoría conserva 234 eventos. Selección de agente por teclado, reproducción
+  histórica y calendario con eventos reales verificados sin editar registros.
+- Build: todas las migraciones existentes omitidas (skip), administrador existente.
+- Consulta de respuestas 5xx del despliegue durante QA: ninguna registrada.
+- GitHub Actions del runtime: cinco jobs aprobados, run 33968780566.
+- La QA real detectó superposición de etiquetas con seis destinos; se corrigió
+  moviéndolas al costado y se verificó el segundo despliegue.
+
+Advertencias no bloqueantes existentes: instancia Clerk de desarrollo y aviso de pg
+sobre futuros cambios de semántica de sslmode. No se cambió Clerk ni la política TLS.
+Antes de una actualización mayor de pg conviene explicitar verify-full y verificar
+compatibilidad del proveedor. No se desactivó la validación de certificados.
+
+No se hizo una nueva escritura MCP en producción: la prueba CRUD HTTP completa fue
+local y descartable. No se configuró monitoreo periódico automático.
